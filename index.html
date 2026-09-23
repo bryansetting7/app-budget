@@ -15,6 +15,7 @@
     --gold: #D4A017;
     --sage: #8DA98F;
     --rose: #C77B7B;
+    --blue: #7C93C7;
     --text: #F2EFE9;
     --text-muted: #97A2B6;
     box-sizing: border-box;
@@ -46,6 +47,7 @@
   }
   .split-input-row.gold input { color: var(--gold); }
   .split-input-row.rose input { color: var(--rose); }
+  .split-input-row.blue input { color: var(--blue); }
   .split-input-row input:focus { outline: none; }
   .split-input-row span { color: var(--text-muted); font-size: 15px; }
 
@@ -88,6 +90,7 @@
   }
   .result-row.logement .amt { color: var(--gold); }
   .result-row.surete .amt { color: var(--rose); }
+  .result-row.projet .amt { color: var(--blue); }
   .result-row.vie .amt { color: var(--sage); }
   .note { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
 </style>
@@ -109,6 +112,13 @@
       <label for="suretyInput">Vers la sûreté</label>
       <div class="split-input-row rose">
         <input type="number" id="suretyInput" min="0" max="100" step="1" value="10">
+        <span>%</span>
+      </div>
+    </div>
+    <div class="split-field">
+      <label for="projetInput">Vers projet</label>
+      <div class="split-input-row blue">
+        <input type="number" id="projetInput" min="0" max="100" step="1" value="10">
         <span>%</span>
       </div>
     </div>
@@ -139,6 +149,10 @@
       <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>% des commissions)</span>
       <span class="amt" id="outSurety">0 €</span>
     </div>
+    <div class="result-row projet total">
+      <span><strong>Vers Projet</strong> (<span id="projetLabel">10</span>% des commissions)</span>
+      <span class="amt" id="outProjet">0 €</span>
+    </div>
     <div class="result-row vie total">
       <span><strong>Vers Vie courante</strong></span>
       <span class="amt" id="outVie">0 €</span>
@@ -152,10 +166,12 @@
   const CHARGES_FIXES = 167;
   const SPLIT_KEY = 'repartition-simple-split-v1';
   const SURETY_KEY = 'repartition-simple-surety-v1';
+  const PROJET_KEY = 'repartition-simple-projet-v1';
 
   let rows = [];
   let split = 30;
   let surety = 10;
+  let projet = 10;
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -166,6 +182,8 @@
       if (s) split = parseFloat(s);
       const su = localStorage.getItem(SURETY_KEY);
       if (su) surety = parseFloat(su);
+      const pr = localStorage.getItem(PROJET_KEY);
+      if (pr) projet = parseFloat(pr);
     } catch (e) {}
   }
   function saveSplit() {
@@ -173,6 +191,9 @@
   }
   function saveSurety() {
     try { localStorage.setItem(SURETY_KEY, String(surety)); } catch (e) {}
+  }
+  function saveProjet() {
+    try { localStorage.setItem(PROJET_KEY, String(projet)); } catch (e) {}
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); } catch (e) {}
