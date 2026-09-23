@@ -49,6 +49,14 @@
   .split-input-row.rose input { color: var(--rose); }
   .split-input-row.blue input { color: var(--blue); }
   .split-input-row.sage input { color: var(--sage); }
+
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+  .mode-btn {
+    flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 0; text-align: center; color: var(--text-muted); font-size: 13.5px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .mode-btn.active { background: rgba(141,169,143,0.14); border-color: var(--sage); color: var(--sage); }
   .split-input-row input:focus { outline: none; }
   .split-input-row span { color: var(--text-muted); font-size: 15px; }
 
@@ -132,6 +140,21 @@
     </div>
   </div>
 
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn active" data-mode="pct">Répartir par %</button>
+    <button type="button" class="mode-btn" data-mode="fixed">Vie courante fixe</button>
+  </div>
+
+  <div class="split-fields" id="vieFixedField" style="display:none;">
+    <div class="split-field">
+      <label for="vieFixedInput">Vie courante visée</label>
+      <div class="split-input-row sage">
+        <input type="number" id="vieFixedInput" min="0" step="10" value="1000">
+        <span>€</span>
+      </div>
+    </div>
+  </div>
+
   <div class="split-fields">
     <div class="split-field">
       <label for="splitInput">Vers le logement</label>
@@ -173,11 +196,11 @@
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row logement total">
-      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>% des commissions)</span>
+      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>%<span id="splitSuffix"> des commissions</span>)</span>
       <span class="amt" id="outLogement">0 €</span>
     </div>
     <div class="result-row surete total">
-      <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>% des commissions)</span>
+      <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>%<span id="suretySuffix"> des commissions</span>)</span>
       <span class="amt" id="outSurety">0 €</span>
     </div>
     <div id="projetsResult"></div>
@@ -195,12 +218,16 @@
   const SPLIT_KEY = 'repartition-simple-split-v1';
   const SURETY_KEY = 'repartition-simple-surety-v1';
   const PROJETS_KEY = 'repartition-simple-projets-v1';
+  const MODE_KEY = 'repartition-simple-mode-v1';
+  const VIEFIXED_KEY = 'repartition-simple-viefixed-v1';
 
   let rows = [];
   let chargesFixes = 167;
   let split = 30;
   let surety = 10;
   let projets = [];
+  let mode = 'pct';
+  let vieFixed = 1000;
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -214,7 +241,17 @@
       const su = localStorage.getItem(SURETY_KEY);
       if (su) surety = parseFloat(su);
       projets = JSON.parse(localStorage.getItem(PROJETS_KEY)) || [];
+      const m = localStorage.getItem(MODE_KEY);
+      if (m) mode = m;
+      const vf = localStorage.getItem(VIEFIXED_KEY);
+      if (vf) vieFixed = parseFloat(vf);
     } catch (e) { projets = []; }
+  }
+  function saveMode() {
+    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+  }
+  function saveVieFixed() {
+    try { localStorage.setItem(VIEFIXED_KEY, String(vieFixed)); } catch (e) {}
   }
   function saveCharges() {
     try { localStorage.setItem(CHARGES_KEY, String(chargesFixes)); } catch (e) {}
@@ -278,12 +315,12 @@
     });
   }
 
-  function renderProjetsResult(totalCom) {
+  function renderProjetsResult(montants) {
     const container = document.getElementById('projetsResult');
-    container.innerHTML = projets.map(p => `
+    container.innerHTML = projets.map((p, i) => `
       <div class="result-row projet total">
-        <span><strong>Vers ${p.name || 'Projet'}</strong> (${p.pct}% des commissions)</span>
-        <span class="amt">${fmt(totalCom * (p.pct / 100))}</span>
+        <span><strong>Vers ${p.name || 'Projet'}</strong> (${p.pct}%)</span>
+        <span class="amt">${fmt(montants[i] || 0)}</span>
       </div>
     `).join('');
   }
@@ -328,19 +365,44 @@
     const shortfall = Math.max(chargesFixes - totalRsa, 0);
     const comApresCharges = Math.max(totalCom - shortfall, 0);
 
-    const comVersLogement = comApresCharges * (split / 100);
-    const comVersSurety = comApresCharges * (surety / 100);
     const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
-    const comVersProjets = comApresCharges * (totalProjetsPct / 100);
-    const comVersVie = comApresCharges - comVersLogement - comVersSurety - comVersProjets;
+
+    let comVersLogement, comVersSurety, comVersVie;
+    let projetsMontants = [];
+
+    if (mode === 'fixed') {
+      const pot = rsaVersVie + comApresCharges;
+      const vieCourante = Math.min(vieFixed, pot);
+      const resteAPartager = pot - vieCourante;
+      const totalPoids = split + surety + totalProjetsPct;
+
+      if (totalPoids > 0) {
+        comVersLogement = resteAPartager * (split / totalPoids);
+        comVersSurety = resteAPartager * (surety / totalPoids);
+        projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
+      } else {
+        comVersLogement = 0;
+        comVersSurety = 0;
+        projetsMontants = projets.map(() => 0);
+      }
+      comVersVie = vieCourante - rsaVersVie; // la part venant des commissions (rsaVersVie va directement dans vie aussi)
+      document.getElementById('outVie').textContent = fmt(vieCourante);
+    } else {
+      comVersLogement = comApresCharges * (split / 100);
+      comVersSurety = comApresCharges * (surety / 100);
+      projetsMontants = projets.map(p => comApresCharges * ((parseFloat(p.pct) || 0) / 100));
+      comVersVie = comApresCharges - comVersLogement - comVersSurety - projetsMontants.reduce((s, v) => s + v, 0);
+      document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
+    }
 
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
     document.getElementById('splitLabel').textContent = split;
     document.getElementById('outSurety').textContent = fmt(comVersSurety);
     document.getElementById('suretyLabel').textContent = surety;
-    renderProjetsResult(comApresCharges);
-    document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
+    document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
+    document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
+    renderProjetsResult(projetsMontants);
   }
 
   document.getElementById('chargesInput').addEventListener('input', (e) => {
@@ -383,12 +445,37 @@
     compute();
   });
 
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.getAttribute('data-mode');
+      saveMode();
+      document.getElementById('vieFixedField').style.display = mode === 'fixed' ? 'flex' : 'none';
+      compute();
+    });
+  });
+
+  document.getElementById('vieFixedInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    v = Math.max(v, 0);
+    vieFixed = v;
+    saveVieFixed();
+    compute();
+  });
+
   load();
   document.getElementById('chargesInput').value = chargesFixes;
   document.getElementById('splitInput').value = split;
   document.getElementById('suretyInput').value = surety;
   renderRows();
   renderProjets();
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+  });
+  document.getElementById('vieFixedField').style.display = mode === 'fixed' ? 'flex' : 'none';
+  document.getElementById('vieFixedInput').value = vieFixed;
   compute();
 })();
 </script>
