@@ -48,6 +48,7 @@
   .split-input-row.gold input { color: var(--gold); }
   .split-input-row.rose input { color: var(--rose); }
   .split-input-row.blue input { color: var(--blue); }
+  .split-input-row.sage input { color: var(--sage); }
   .split-input-row input:focus { outline: none; }
   .split-input-row span { color: var(--text-muted); font-size: 15px; }
 
@@ -120,6 +121,16 @@
 <div class="wrap">
   <h1>Répartition fixe & commissions</h1>
   <p class="sub">Rentre tes montants, la répartition entre charges fixes, épargne logement et vie courante se calcule toute seule.</p>
+
+  <div class="split-fields">
+    <div class="split-field">
+      <label for="chargesInput">Charges fixes / mois</label>
+      <div class="split-input-row sage">
+        <input type="number" id="chargesInput" min="0" step="1" value="167">
+        <span>€</span>
+      </div>
+    </div>
+  </div>
 
   <div class="split-fields">
     <div class="split-field">
