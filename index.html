@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -75,6 +75,27 @@
   }
   .add-row:hover { border-color: var(--gold); color: var(--gold); }
 
+  .projets-block { margin-bottom: 24px; }
+  .projets-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+  .projet-row {
+    display: flex; gap: 8px; margin-bottom: 8px; align-items: center;
+  }
+  .projet-row input[type="text"] {
+    flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; color: var(--text); font: inherit; font-size: 15px;
+  }
+  .projet-row .pct-wrap {
+    display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 10px; width: 76px; flex-shrink: 0;
+  }
+  .projet-row .pct-wrap input[type="number"] {
+    background: none; border: none; color: var(--blue); font: inherit; font-size: 15px; font-weight: 600;
+    width: 100%; padding: 6px 0;
+  }
+  .projet-row .pct-wrap input:focus { outline: none; }
+  .projet-row .pct-wrap span { color: var(--text-muted); font-size: 13px; }
+  .projet-row input[type="text"]:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
   .result {
     background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px;
   }
@@ -115,13 +136,12 @@
         <span>%</span>
       </div>
     </div>
-    <div class="split-field">
-      <label for="projetInput">Vers projet</label>
-      <div class="split-input-row blue">
-        <input type="number" id="projetInput" min="0" max="100" step="1" value="10">
-        <span>%</span>
-      </div>
-    </div>
+  </div>
+
+  <div class="projets-block">
+    <label class="projets-label">Poches projet</label>
+    <div id="projetsRows"></div>
+    <button class="add-row" id="addProjet" type="button">+ ajouter un projet</button>
   </div>
 
   <table>
@@ -149,10 +169,7 @@
       <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>% des commissions)</span>
       <span class="amt" id="outSurety">0 €</span>
     </div>
-    <div class="result-row projet total">
-      <span><strong>Vers Projet</strong> (<span id="projetLabel">10</span>% des commissions)</span>
-      <span class="amt" id="outProjet">0 €</span>
-    </div>
+    <div id="projetsResult"></div>
     <div class="result-row vie total">
       <span><strong>Vers Vie courante</strong></span>
       <span class="amt" id="outVie">0 €</span>
@@ -166,12 +183,12 @@
   const CHARGES_FIXES = 167;
   const SPLIT_KEY = 'repartition-simple-split-v1';
   const SURETY_KEY = 'repartition-simple-surety-v1';
-  const PROJET_KEY = 'repartition-simple-projet-v1';
+  const PROJETS_KEY = 'repartition-simple-projets-v1';
 
   let rows = [];
   let split = 30;
   let surety = 10;
-  let projet = 10;
+  let projets = [];
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -182,9 +199,8 @@
       if (s) split = parseFloat(s);
       const su = localStorage.getItem(SURETY_KEY);
       if (su) surety = parseFloat(su);
-      const pr = localStorage.getItem(PROJET_KEY);
-      if (pr) projet = parseFloat(pr);
-    } catch (e) {}
+      projets = JSON.parse(localStorage.getItem(PROJETS_KEY)) || [];
+    } catch (e) { projets = []; }
   }
   function saveSplit() {
     try { localStorage.setItem(SPLIT_KEY, String(split)); } catch (e) {}
@@ -192,14 +208,67 @@
   function saveSurety() {
     try { localStorage.setItem(SURETY_KEY, String(surety)); } catch (e) {}
   }
-  function saveProjet() {
-    try { localStorage.setItem(PROJET_KEY, String(projet)); } catch (e) {}
+  function saveProjets() {
+    try { localStorage.setItem(PROJETS_KEY, JSON.stringify(projets)); } catch (e) {}
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); } catch (e) {}
   }
   function fmt(n) {
     return n.toLocaleString('fr-FR', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 }) + ' €';
+  }
+
+  function renderProjets() {
+    const body = document.getElementById('projetsRows');
+    body.innerHTML = projets.map((p, i) => `
+      <div class="projet-row">
+        <input type="text" placeholder="Nom du projet" data-pi="${i}" data-pcol="name" value="${p.name}">
+        <div class="pct-wrap">
+          <input type="number" min="0" max="100" step="1" data-pi="${i}" data-pcol="pct" value="${p.pct}">
+          <span>%</span>
+        </div>
+        <button class="row-del" data-pdel="${i}" aria-label="Supprimer">×</button>
+      </div>
+    `).join('');
+
+    body.querySelectorAll('input[data-pcol="name"]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const i = parseInt(inp.getAttribute('data-pi'));
+        projets[i].name = inp.value;
+        saveProjets();
+        compute();
+      });
+    });
+    body.querySelectorAll('input[data-pcol="pct"]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const i = parseInt(inp.getAttribute('data-pi'));
+        let v = parseFloat(inp.value);
+        if (isNaN(v)) v = 0;
+        v = Math.min(Math.max(v, 0), 100);
+        projets[i].pct = v;
+        saveProjets();
+        compute();
+      });
+    });
+    body.querySelectorAll('[data-pdel]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.getAttribute('data-pdel'));
+        projets.splice(i, 1);
+        saveProjets();
+        renderProjets();
+        compute();
+      });
+    });
+  }
+
+  function renderProjetsResult(totalCom) {
+    const container = document.getElementById('projetsResult');
+    container.innerHTML = projets.map(p => `
+      <div class="result-row projet total">
+        <span><strong>Vers ${p.name || 'Projet'}</strong> (${p.pct}% des commissions)</span>
+        <span class="amt">${fmt(totalCom * (p.pct / 100))}</span>
+      </div>
+    `).join('');
   }
 
   function renderRows() {
@@ -242,13 +311,16 @@
 
     const comVersLogement = totalCom * (split / 100);
     const comVersSurety = totalCom * (surety / 100);
-    const comVersVie = totalCom - comVersLogement - comVersSurety;
+    const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
+    const comVersProjets = totalCom * (totalProjetsPct / 100);
+    const comVersVie = totalCom - comVersLogement - comVersSurety - comVersProjets;
 
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
     document.getElementById('splitLabel').textContent = split;
     document.getElementById('outSurety').textContent = fmt(comVersSurety);
     document.getElementById('suretyLabel').textContent = surety;
+    renderProjetsResult(totalCom);
     document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
   }
 
@@ -276,10 +348,18 @@
     compute();
   });
 
+  document.getElementById('addProjet').addEventListener('click', () => {
+    projets.push({ name: '', pct: 10 });
+    saveProjets();
+    renderProjets();
+    compute();
+  });
+
   load();
   document.getElementById('splitInput').value = split;
   document.getElementById('suretyInput').value = surety;
   renderRows();
+  renderProjets();
   compute();
 })();
 </script>
