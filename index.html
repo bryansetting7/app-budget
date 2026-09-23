@@ -169,7 +169,7 @@
 
   <div class="result" style="margin-top:24px;">
     <div class="result-row">
-      <span>Charges fixes couvertes (sur le fixe)</span>
+      <span>Charges fixes couvertes</span>
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row logement total">
@@ -323,21 +323,23 @@
     const totalRsa = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0);
     const totalCom = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
 
-    const chargesCouvertes = Math.min(totalRsa, chargesFixes);
+    const chargesCouvertes = Math.min(chargesFixes, totalRsa + totalCom);
     const rsaVersVie = Math.max(totalRsa - chargesFixes, 0);
+    const shortfall = Math.max(chargesFixes - totalRsa, 0);
+    const comApresCharges = Math.max(totalCom - shortfall, 0);
 
-    const comVersLogement = totalCom * (split / 100);
-    const comVersSurety = totalCom * (surety / 100);
+    const comVersLogement = comApresCharges * (split / 100);
+    const comVersSurety = comApresCharges * (surety / 100);
     const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
-    const comVersProjets = totalCom * (totalProjetsPct / 100);
-    const comVersVie = totalCom - comVersLogement - comVersSurety - comVersProjets;
+    const comVersProjets = comApresCharges * (totalProjetsPct / 100);
+    const comVersVie = comApresCharges - comVersLogement - comVersSurety - comVersProjets;
 
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
     document.getElementById('splitLabel').textContent = split;
     document.getElementById('outSurety').textContent = fmt(comVersSurety);
     document.getElementById('suretyLabel').textContent = surety;
-    renderProjetsResult(totalCom);
+    renderProjetsResult(comApresCharges);
     document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
   }
 
