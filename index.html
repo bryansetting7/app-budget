@@ -191,12 +191,13 @@
 <script>
 (function() {
   const STORAGE_KEY = 'repartition-simple-v1';
-  const CHARGES_FIXES = 167;
+  const CHARGES_KEY = 'repartition-simple-charges-v1';
   const SPLIT_KEY = 'repartition-simple-split-v1';
   const SURETY_KEY = 'repartition-simple-surety-v1';
   const PROJETS_KEY = 'repartition-simple-projets-v1';
 
   let rows = [];
+  let chargesFixes = 167;
   let split = 30;
   let surety = 10;
   let projets = [];
@@ -206,12 +207,17 @@
     catch (e) { rows = []; }
     if (rows.length === 0) rows = [{ rsa: '', com: '' }];
     try {
+      const c = localStorage.getItem(CHARGES_KEY);
+      if (c) chargesFixes = parseFloat(c);
       const s = localStorage.getItem(SPLIT_KEY);
       if (s) split = parseFloat(s);
       const su = localStorage.getItem(SURETY_KEY);
       if (su) surety = parseFloat(su);
       projets = JSON.parse(localStorage.getItem(PROJETS_KEY)) || [];
     } catch (e) { projets = []; }
+  }
+  function saveCharges() {
+    try { localStorage.setItem(CHARGES_KEY, String(chargesFixes)); } catch (e) {}
   }
   function saveSplit() {
     try { localStorage.setItem(SPLIT_KEY, String(split)); } catch (e) {}
@@ -317,8 +323,8 @@
     const totalRsa = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0);
     const totalCom = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
 
-    const chargesCouvertes = Math.min(totalRsa, CHARGES_FIXES);
-    const rsaVersVie = Math.max(totalRsa - CHARGES_FIXES, 0);
+    const chargesCouvertes = Math.min(totalRsa, chargesFixes);
+    const rsaVersVie = Math.max(totalRsa - chargesFixes, 0);
 
     const comVersLogement = totalCom * (split / 100);
     const comVersSurety = totalCom * (surety / 100);
@@ -334,6 +340,15 @@
     renderProjetsResult(totalCom);
     document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
   }
+
+  document.getElementById('chargesInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    v = Math.max(v, 0);
+    chargesFixes = v;
+    saveCharges();
+    compute();
+  });
 
   document.getElementById('addRow').addEventListener('click', () => {
     rows.push({ rsa: '', com: '' });
@@ -367,6 +382,7 @@
   });
 
   load();
+  document.getElementById('chargesInput').value = chargesFixes;
   document.getElementById('splitInput').value = split;
   document.getElementById('suretyInput').value = surety;
   renderRows();
