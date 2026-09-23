@@ -32,6 +32,19 @@
   }
   .sub { color: var(--text-muted); font-size: 14px; margin: 0 0 28px; }
 
+  .split-field { margin-bottom: 20px; }
+  .split-field label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+  .split-input-row {
+    display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 12px; width: 110px;
+  }
+  .split-input-row input {
+    background: none; border: none; color: var(--gold); font: inherit; font-size: 17px; font-weight: 600;
+    width: 100%; padding: 8px 0; -moz-appearance: textfield;
+  }
+  .split-input-row input:focus { outline: none; }
+  .split-input-row span { color: var(--text-muted); font-size: 15px; }
+
   table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
   thead th {
     text-align: left; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
@@ -79,6 +92,14 @@
   <h1>Répartition fixe & commissions</h1>
   <p class="sub">Rentre tes montants, la répartition entre charges fixes, épargne logement et vie courante se calcule toute seule.</p>
 
+  <div class="split-field">
+    <label for="splitInput">Part des commissions vers le logement</label>
+    <div class="split-input-row">
+      <input type="number" id="splitInput" min="0" max="100" step="1" value="30">
+      <span>%</span>
+    </div>
+  </div>
+
   <table>
     <thead>
       <tr>
@@ -97,7 +118,7 @@
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row logement total">
-      <span><strong>Vers Projet logement</strong> (30% des commissions)</span>
+      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>% des commissions)</span>
       <span class="amt" id="outLogement">0 €</span>
     </div>
     <div class="result-row vie total">
@@ -111,14 +132,22 @@
 (function() {
   const STORAGE_KEY = 'repartition-simple-v1';
   const CHARGES_FIXES = 167;
-  const SPLIT = 0.30;
+  const SPLIT_KEY = 'repartition-simple-split-v1';
 
   let rows = [];
+  let split = 30;
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
     catch (e) { rows = []; }
     if (rows.length === 0) rows = [{ rsa: '', com: '' }];
+    try {
+      const s = localStorage.getItem(SPLIT_KEY);
+      if (s) split = parseFloat(s);
+    } catch (e) {}
+  }
+  function saveSplit() {
+    try { localStorage.setItem(SPLIT_KEY, String(split)); } catch (e) {}
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); } catch (e) {}
@@ -165,11 +194,12 @@
     const chargesCouvertes = Math.min(totalRsa, CHARGES_FIXES);
     const rsaVersVie = Math.max(totalRsa - CHARGES_FIXES, 0);
 
-    const comVersLogement = totalCom * SPLIT;
+    const comVersLogement = totalCom * (split / 100);
     const comVersVie = totalCom - comVersLogement;
 
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
+    document.getElementById('splitLabel').textContent = split;
     document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
   }
 
@@ -179,7 +209,17 @@
     renderRows();
   });
 
+  document.getElementById('splitInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    v = Math.min(Math.max(v, 0), 100);
+    split = v;
+    saveSplit();
+    compute();
+  });
+
   load();
+  document.getElementById('splitInput').value = split;
   renderRows();
   compute();
 })();
