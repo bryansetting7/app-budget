@@ -123,6 +123,27 @@
   .result-row.projet .amt { color: var(--blue); }
   .result-row.vie .amt { color: var(--sage); }
   .note { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
+
+  .goal-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; margin-bottom: 20px;
+  }
+  .goal-fields { display: flex; gap: 14px; margin-top: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .date-input {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 12px; color: var(--gold); font: inherit; font-size: 15px; font-weight: 600;
+    color-scheme: dark;
+  }
+  .date-input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .goal-bar-wrap { margin-bottom: 10px; }
+  .goal-bar {
+    width: 100%; height: 10px; background: var(--line); border-radius: 999px; overflow: hidden;
+  }
+  .goal-bar-fill {
+    height: 100%; background: var(--gold); border-radius: 999px; width: 0%; transition: width 0.4s ease;
+  }
+  .goal-status { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  .goal-status strong { color: var(--gold); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -190,6 +211,27 @@
   </table>
   <button class="add-row" id="addRow" type="button">+ ajouter une ligne</button>
 
+  <div class="goal-card">
+    <label class="projets-label">Objectif logement</label>
+    <div class="goal-fields">
+      <div class="split-field">
+        <label for="goalAmountInput">Montant visé</label>
+        <div class="split-input-row gold">
+          <input type="number" id="goalAmountInput" min="0" step="10" value="1100">
+          <span>€</span>
+        </div>
+      </div>
+      <div class="split-field">
+        <label for="goalDateInput">Date visée</label>
+        <input type="date" id="goalDateInput" class="date-input">
+      </div>
+    </div>
+    <div class="goal-bar-wrap">
+      <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
+    </div>
+    <div class="goal-status" id="goalStatus"></div>
+  </div>
+
   <div class="result" style="margin-top:24px;">
     <div class="result-row">
       <span>Charges fixes couvertes</span>
@@ -220,6 +262,8 @@
   const PROJETS_KEY = 'repartition-simple-projets-v1';
   const MODE_KEY = 'repartition-simple-mode-v1';
   const VIEFIXED_KEY = 'repartition-simple-viefixed-v1';
+  const GOAL_AMOUNT_KEY = 'repartition-simple-goalamount-v1';
+  const GOAL_DATE_KEY = 'repartition-simple-goaldate-v1';
 
   let rows = [];
   let chargesFixes = 167;
@@ -228,6 +272,8 @@
   let projets = [];
   let mode = 'pct';
   let vieFixed = 1000;
+  let goalAmount = 1100;
+  let goalDate = '';
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -245,7 +291,17 @@
       if (m) mode = m;
       const vf = localStorage.getItem(VIEFIXED_KEY);
       if (vf) vieFixed = parseFloat(vf);
+      const ga = localStorage.getItem(GOAL_AMOUNT_KEY);
+      if (ga) goalAmount = parseFloat(ga);
+      const gd = localStorage.getItem(GOAL_DATE_KEY);
+      if (gd) goalDate = gd;
     } catch (e) { projets = []; }
+  }
+  function saveGoalAmount() {
+    try { localStorage.setItem(GOAL_AMOUNT_KEY, String(goalAmount)); } catch (e) {}
+  }
+  function saveGoalDate() {
+    try { localStorage.setItem(GOAL_DATE_KEY, goalDate); } catch (e) {}
   }
   function saveMode() {
     try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
@@ -403,6 +459,40 @@
     document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
     document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
     renderProjetsResult(projetsMontants);
+
+    renderGoal(comVersLogement);
+  }
+
+  function renderGoal(logementCeMois) {
+    const fill = document.getElementById('goalBarFill');
+    const status = document.getElementById('goalStatus');
+    const pct = goalAmount > 0 ? Math.min((logementCeMois / goalAmount) * 100, 100) : 0;
+    fill.style.width = pct + '%';
+
+    if (!goalDate) {
+      status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} visés (${Math.round(pct)}%). Ajoute une date pour voir le rythme nécessaire.`;
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const target = new Date(goalDate);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const daysLeft = Math.round((target - today) / msPerDay);
+    const remaining = Math.max(goalAmount - logementCeMois, 0);
+
+    if (remaining <= 0) {
+      status.innerHTML = `<strong>Objectif atteint</strong> (${fmt(logementCeMois)} sur ${fmt(goalAmount)}).`;
+      return;
+    }
+    if (daysLeft <= 0) {
+      status.innerHTML = `Échéance dépassée — il manque encore <strong>${fmt(remaining)}</strong> pour atteindre l'objectif.`;
+      return;
+    }
+
+    const monthsLeft = daysLeft / 30.44;
+    const monthlyNeeded = remaining / monthsLeft;
+    status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} (${Math.round(pct)}%) — il reste ${fmt(remaining)} à trouver en ${daysLeft} jours, soit <strong>${fmt(monthlyNeeded)}/mois</strong> en moyenne.`;
   }
 
   document.getElementById('chargesInput').addEventListener('input', (e) => {
@@ -456,6 +546,21 @@
     });
   });
 
+  document.getElementById('goalAmountInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    v = Math.max(v, 0);
+    goalAmount = v;
+    saveGoalAmount();
+    compute();
+  });
+
+  document.getElementById('goalDateInput').addEventListener('input', (e) => {
+    goalDate = e.target.value;
+    saveGoalDate();
+    compute();
+  });
+
   document.getElementById('vieFixedInput').addEventListener('input', (e) => {
     let v = parseFloat(e.target.value);
     if (isNaN(v)) v = 0;
@@ -476,6 +581,8 @@
   });
   document.getElementById('vieFixedField').style.display = mode === 'fixed' ? 'flex' : 'none';
   document.getElementById('vieFixedInput').value = vieFixed;
+  document.getElementById('goalAmountInput').value = goalAmount;
+  if (goalDate) document.getElementById('goalDateInput').value = goalDate;
   compute();
 })();
 </script>
