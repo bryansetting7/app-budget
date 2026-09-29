@@ -444,11 +444,12 @@
       comVersVie = vieCourante - rsaVersVie; // la part venant des commissions (rsaVersVie va directement dans vie aussi)
       document.getElementById('outVie').textContent = fmt(vieCourante);
     } else {
-      comVersLogement = comApresCharges * (split / 100);
-      comVersSurety = comApresCharges * (surety / 100);
-      projetsMontants = projets.map(p => comApresCharges * ((parseFloat(p.pct) || 0) / 100));
-      comVersVie = comApresCharges - comVersLogement - comVersSurety - projetsMontants.reduce((s, v) => s + v, 0);
-      document.getElementById('outVie').textContent = fmt(rsaVersVie + comVersVie);
+      const pot = rsaVersVie + comApresCharges;
+      comVersLogement = pot * (split / 100);
+      comVersSurety = pot * (surety / 100);
+      projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
+      comVersVie = pot - comVersLogement - comVersSurety - projetsMontants.reduce((s, v) => s + v, 0);
+      document.getElementById('outVie').textContent = fmt(comVersVie);
     }
 
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
@@ -456,8 +457,8 @@
     document.getElementById('splitLabel').textContent = split;
     document.getElementById('outSurety').textContent = fmt(comVersSurety);
     document.getElementById('suretyLabel').textContent = surety;
-    document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
-    document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' des commissions';
+    document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
+    document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
     renderProjetsResult(projetsMontants);
 
     renderGoal(comVersLogement);
