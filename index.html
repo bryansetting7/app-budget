@@ -144,10 +144,43 @@
   }
   .goal-status { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   .goal-status strong { color: var(--gold); font-weight: 600; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+  .tab-btn {
+    flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 0; text-align: center; color: var(--text-muted); font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .tab-btn.active { background: rgba(212,160,23,0.14); border-color: var(--gold); color: var(--gold); }
+  .debt-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .debt-row input[type="text"] {
+    flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; color: var(--text); font: inherit; font-size: 15px;
+  }
+  .debt-row input[type="text"]:focus { outline: 2px solid var(--rose); outline-offset: 1px; }
+  .debt-row .amt-wrap {
+    display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 10px; width: 104px; flex-shrink: 0;
+  }
+  .debt-row .amt-wrap input {
+    background: none; border: none; color: var(--rose); font: inherit; font-size: 15px; font-weight: 600;
+    width: 100%; padding: 6px 0;
+  }
+  .debt-row .amt-wrap input:focus { outline: none; }
+  .debt-row .amt-wrap span { color: var(--text-muted); font-size: 13px; }
+  .debt-note { margin-bottom: 14px; }
+  .debt-total .amt { color: var(--rose); }
+  .by-person { font-size: 13px; color: var(--text-muted); }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="repartition">Répartition</button>
+    <button type="button" class="tab-btn" data-tab="dettes">Dettes</button>
+  </div>
+
+  <div id="tabRepartition">
   <h1>Répartition fixe & commissions</h1>
   <p class="sub">Rentre tes montants, la répartition entre charges fixes, épargne logement et vie courante se calcule toute seule.</p>
 
@@ -191,6 +224,13 @@
         <span>%</span>
       </div>
     </div>
+    <div class="split-field">
+      <label for="debtPctInput">Vers les dettes</label>
+      <div class="split-input-row rose">
+        <input type="number" id="debtPctInput" min="0" max="100" step="1" value="0">
+        <span>%</span>
+      </div>
+    </div>
   </div>
 
   <div class="projets-block">
@@ -217,7 +257,7 @@
       <div class="split-field">
         <label for="goalAmountInput">Montant visé</label>
         <div class="split-input-row gold">
-          <input type="number" id="goalAmountInput" min="0" step="10" value="1100">
+          <input type="number" id="goalAmountInput" min="0" step="10" value="1500">
           <span>€</span>
         </div>
       </div>
@@ -245,11 +285,31 @@
       <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>%<span id="suretySuffix"> des commissions</span>)</span>
       <span class="amt" id="outSurety">0 €</span>
     </div>
+    <div class="result-row surete total">
+      <span><strong>Vers Dettes</strong> (<span id="debtLabel">0</span>%) <span id="debtLeft" class="by-person"></span></span>
+      <span class="amt" id="outDebt">0 €</span>
+    </div>
     <div id="projetsResult"></div>
     <div class="result-row vie total">
       <span><strong>Vers Vie courante</strong></span>
       <span class="amt" id="outVie">0 €</span>
     </div>
+  </div>
+  </div>
+
+  <div id="tabDettes" style="display:none;">
+    <h1>Ce que je dois</h1>
+    <p class="sub">Note à qui tu dois de l'argent et combien. Quand tu rembourses, baisse le montant (ou supprime la ligne).</p>
+    <div id="debtRows"></div>
+    <button class="add-row" id="addDebt" type="button">+ ajouter une dette</button>
+    <div class="result" style="margin-top:24px;">
+      <div class="result-row total debt-total">
+        <span><strong>Total dû</strong></span>
+        <span class="amt" id="debtTotal">0 €</span>
+      </div>
+      <div id="debtByPerson"></div>
+    </div>
+    <p class="note">Astuce : une même personne peut avoir plusieurs lignes, le total par personne se calcule tout seul.</p>
   </div>
 </div>
 
@@ -272,8 +332,15 @@
   let projets = [];
   let mode = 'pct';
   let vieFixed = 1000;
-  let goalAmount = 1100;
+  let goalAmount = 1500;
   let goalDate = '';
+  const DEBTS_KEY = 'repartition-simple-debts-v1';
+  const DEBTPCT_KEY = 'repartition-simple-debtpct-v1';
+  let debts = [];
+  let debtPct = 0;
+  try { debts = JSON.parse(localStorage.getItem(DEBTS_KEY)) || []; } catch (e) { debts = []; }
+  try { const dp = localStorage.getItem(DEBTPCT_KEY); if (dp) debtPct = parseFloat(dp); } catch (e) {}
+  function totalDebt() { return debts.reduce((t, d) => t + (parseFloat(d.amount) || 0), 0); }
 
   function load() {
     try { rows = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -425,17 +492,22 @@
 
     let comVersLogement, comVersSurety, comVersVie;
     let projetsMontants = [];
+    let versDettes = 0;
+    const dette = totalDebt();
 
     if (mode === 'fixed') {
       const pot = rsaVersVie + comApresCharges;
       const vieCourante = Math.min(vieFixed, pot);
       const resteAPartager = pot - vieCourante;
-      const totalPoids = split + surety + totalProjetsPct;
+      const totalPoids = split + surety + totalProjetsPct + debtPct;
 
       if (totalPoids > 0) {
+        versDettes = Math.min(resteAPartager * (debtPct / totalPoids), dette);
         comVersLogement = resteAPartager * (split / totalPoids);
         comVersSurety = resteAPartager * (surety / totalPoids);
         projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
+        // surplus non utilisé pour les dettes (plafonné au total dû) -> logement
+        comVersLogement += resteAPartager * (debtPct / totalPoids) - versDettes;
       } else {
         comVersLogement = 0;
         comVersSurety = 0;
@@ -447,8 +519,9 @@
       const pot = rsaVersVie + comApresCharges;
       comVersLogement = pot * (split / 100);
       comVersSurety = pot * (surety / 100);
+      versDettes = Math.min(pot * (debtPct / 100), dette);
       projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
-      comVersVie = pot - comVersLogement - comVersSurety - projetsMontants.reduce((s, v) => s + v, 0);
+      comVersVie = pot - comVersLogement - comVersSurety - versDettes - projetsMontants.reduce((s, v) => s + v, 0);
       document.getElementById('outVie').textContent = fmt(comVersVie);
     }
 
@@ -460,6 +533,9 @@
     document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
     document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
     renderProjetsResult(projetsMontants);
+    document.getElementById('outDebt').textContent = fmt(versDettes);
+    document.getElementById('debtLabel').textContent = debtPct;
+    document.getElementById('debtLeft').textContent = dette > 0 ? '· reste dû ' + fmt(Math.max(dette - versDettes, 0)) : '· aucune dette';
 
     renderGoal(comVersLogement);
   }
@@ -571,7 +647,16 @@
     compute();
   });
 
+  document.getElementById('debtPctInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    debtPct = Math.min(Math.max(v, 0), 100);
+    try { localStorage.setItem(DEBTPCT_KEY, String(debtPct)); } catch (err) {}
+    compute();
+  });
+
   load();
+  document.getElementById('debtPctInput').value = debtPct;
   document.getElementById('chargesInput').value = chargesFixes;
   document.getElementById('splitInput').value = split;
   document.getElementById('suretyInput').value = surety;
@@ -585,6 +670,70 @@
   document.getElementById('goalAmountInput').value = goalAmount;
   if (goalDate) document.getElementById('goalDateInput').value = goalDate;
   compute();
+
+  // ===== Onglets =====
+  function saveDebts() { try { localStorage.setItem(DEBTS_KEY, JSON.stringify(debts)); } catch (e) {} }
+  function esc(t) { return String(t || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+  function renderDebtTotals() {
+    const total = debts.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
+    document.getElementById('debtTotal').textContent = fmt(total);
+    if (typeof compute === 'function') compute();
+    const map = {};
+    debts.forEach(d => {
+      const k = (d.who || '').trim() || 'Sans nom';
+      map[k] = (map[k] || 0) + (parseFloat(d.amount) || 0);
+    });
+    const entries = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    document.getElementById('debtByPerson').innerHTML = entries.length > 1
+      ? entries.map(([k, v]) => `<div class="result-row"><span class="by-person">${esc(k)}</span><span class="amt">${fmt(v)}</span></div>`).join('')
+      : '';
+  }
+
+  function renderDebts() {
+    const body = document.getElementById('debtRows');
+    body.innerHTML = debts.map((d, i) => `
+      <div class="debt-row">
+        <input type="text" placeholder="À qui ?" data-di="${i}" data-dcol="who" value="${esc(d.who)}">
+        <div class="amt-wrap">
+          <input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" data-di="${i}" data-dcol="amount" value="${d.amount}">
+          <span>€</span>
+        </div>
+        <button class="row-del" data-ddel="${i}" aria-label="Supprimer">×</button>
+      </div>
+    `).join('');
+    body.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const i = parseInt(inp.getAttribute('data-di'));
+        debts[i][inp.getAttribute('data-dcol')] = inp.value;
+        saveDebts();
+        renderDebtTotals();
+      });
+    });
+    body.querySelectorAll('[data-ddel]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        debts.splice(parseInt(btn.getAttribute('data-ddel')), 1);
+        saveDebts(); renderDebts();
+      });
+    });
+    renderDebtTotals();
+  }
+
+  document.getElementById('addDebt').addEventListener('click', () => {
+    debts.push({ who: '', amount: '' });
+    saveDebts(); renderDebts();
+  });
+
+  const TAB_KEY = 'repartition-simple-tab-v1';
+  function showTab(t) {
+    document.getElementById('tabRepartition').style.display = t === 'dettes' ? 'none' : 'block';
+    document.getElementById('tabDettes').style.display = t === 'dettes' ? 'block' : 'none';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === t));
+    try { localStorage.setItem(TAB_KEY, t); } catch (e) {}
+  }
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => showTab(b.getAttribute('data-tab'))));
+  renderDebts();
+  try { showTab(localStorage.getItem(TAB_KEY) || 'repartition'); } catch (e) {}
 })();
 </script>
 </body>
