@@ -265,6 +265,13 @@
         <label for="goalDateInput">Date visée</label>
         <input type="date" id="goalDateInput" class="date-input">
       </div>
+      <div class="split-field">
+        <label for="salePriceInput">Commission / vente</label>
+        <div class="split-input-row gold">
+          <input type="number" id="salePriceInput" min="0" step="10" value="200">
+          <span>€</span>
+        </div>
+      </div>
     </div>
     <div class="goal-bar-wrap">
       <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
@@ -338,6 +345,9 @@
   const DEBTPCT_KEY = 'repartition-simple-debtpct-v1';
   let debts = [];
   let debtPct = 0;
+  const SALE_KEY = 'repartition-simple-saleprice-v1';
+  let salePrice = 200;
+  try { const sp = localStorage.getItem(SALE_KEY); if (sp) salePrice = parseFloat(sp); } catch (e) {}
   try { debts = JSON.parse(localStorage.getItem(DEBTS_KEY)) || []; } catch (e) { debts = []; }
   try { const dp = localStorage.getItem(DEBTPCT_KEY); if (dp) debtPct = parseFloat(dp); } catch (e) {}
   function totalDebt() { return debts.reduce((t, d) => t + (parseFloat(d.amount) || 0), 0); }
@@ -520,6 +530,7 @@
       comVersLogement = pot * (split / 100);
       comVersSurety = pot * (surety / 100);
       versDettes = Math.min(pot * (debtPct / 100), dette);
+      comVersLogement += pot * (debtPct / 100) - versDettes; // surplus dettes -> logement
       projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
       comVersVie = pot - comVersLogement - comVersSurety - versDettes - projetsMontants.reduce((s, v) => s + v, 0);
       document.getElementById('outVie').textContent = fmt(comVersVie);
@@ -537,10 +548,19 @@
     document.getElementById('debtLabel').textContent = debtPct;
     document.getElementById('debtLeft').textContent = dette > 0 ? '· reste dû ' + fmt(Math.max(dette - versDettes, 0)) : '· aucune dette';
 
-    renderGoal(comVersLogement);
+    const debtsCleared = (dette - versDettes) <= 0;
+    const poidsLog = split + (debtsCleared ? debtPct : 0);
+    let share;
+    if (mode === 'fixed') {
+      const tp = split + surety + totalProjetsPct + (debtsCleared ? 0 : debtPct) + (debtsCleared ? debtPct : 0);
+      share = tp > 0 ? poidsLog / tp : 0;
+    } else {
+      share = poidsLog / 100;
+    }
+    renderGoal(comVersLogement, share);
   }
 
-  function renderGoal(logementCeMois) {
+  function renderGoal(logementCeMois, share) {
     const fill = document.getElementById('goalBarFill');
     const status = document.getElementById('goalStatus');
     const pct = goalAmount > 0 ? Math.min((logementCeMois / goalAmount) * 100, 100) : 0;
@@ -570,6 +590,12 @@
     const monthsLeft = daysLeft / 30.44;
     const monthlyNeeded = remaining / monthsLeft;
     status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} (${Math.round(pct)}%) — il reste ${fmt(remaining)} à trouver en ${daysLeft} jours, soit <strong>${fmt(monthlyNeeded)}/mois</strong> en moyenne.`;
+    if (salePrice > 0 && share > 0) {
+      const perSale = salePrice * share;
+      const sales = Math.ceil(remaining / perSale);
+      const perMonth = Math.ceil(sales / Math.max(monthsLeft, 1) * 10) / 10;
+      status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente dont ${fmt(perSale)} vont au logement.`;
+    }
   }
 
   document.getElementById('chargesInput').addEventListener('input', (e) => {
@@ -655,7 +681,16 @@
     compute();
   });
 
+  document.getElementById('salePriceInput').addEventListener('input', (e) => {
+    let v = parseFloat(e.target.value);
+    if (isNaN(v)) v = 0;
+    salePrice = Math.max(v, 0);
+    try { localStorage.setItem(SALE_KEY, String(salePrice)); } catch (err) {}
+    compute();
+  });
+
   load();
+  document.getElementById('salePriceInput').value = salePrice;
   document.getElementById('debtPctInput').value = debtPct;
   document.getElementById('chargesInput').value = chargesFixes;
   document.getElementById('splitInput').value = split;
