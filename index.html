@@ -268,6 +268,34 @@
     <button class="add-row" id="matAdd" type="button">Clôturer le mois (l'ajoute au montant actuel et vide le tableau)</button>
   </div>
 
+  <div class="goal-card">
+    <label class="projets-label">Objectif logement</label>
+    <div class="goal-fields">
+      <div class="split-field">
+        <label for="goalAmountInput">Montant visé</label>
+        <div class="split-input-row gold">
+          <input type="number" id="goalAmountInput" min="0" step="10" value="1500">
+          <span>€</span>
+        </div>
+      </div>
+      <div class="split-field">
+        <label for="goalDateInput">Date visée</label>
+        <input type="date" id="goalDateInput" class="date-input">
+      </div>
+      <div class="split-field">
+        <label for="salePriceInput">Commission / vente</label>
+        <div class="split-input-row gold">
+          <input type="number" id="salePriceInput" min="0" step="10" value="200">
+          <span>€</span>
+        </div>
+      </div>
+    </div>
+    <div class="goal-bar-wrap">
+      <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
+    </div>
+    <div class="goal-status" id="goalStatus"></div>
+  </div>
+
   <details class="reglages">
     <summary>Réglages</summary>
   <div class="split-fields">
@@ -323,34 +351,6 @@
     <label class="projets-label">Poches projet</label>
     <div id="projetsRows"></div>
     <button class="add-row" id="addProjet" type="button">+ ajouter un projet</button>
-  </div>
-
-  <div class="goal-card">
-    <label class="projets-label">Objectif logement</label>
-    <div class="goal-fields">
-      <div class="split-field">
-        <label for="goalAmountInput">Montant visé</label>
-        <div class="split-input-row gold">
-          <input type="number" id="goalAmountInput" min="0" step="10" value="1500">
-          <span>€</span>
-        </div>
-      </div>
-      <div class="split-field">
-        <label for="goalDateInput">Date visée</label>
-        <input type="date" id="goalDateInput" class="date-input">
-      </div>
-      <div class="split-field">
-        <label for="salePriceInput">Commission / vente</label>
-        <div class="split-input-row gold">
-          <input type="number" id="salePriceInput" min="0" step="10" value="200">
-          <span>€</span>
-        </div>
-      </div>
-    </div>
-    <div class="goal-bar-wrap">
-      <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
-    </div>
-    <div class="goal-status" id="goalStatus"></div>
   </div>
 
   </details>
