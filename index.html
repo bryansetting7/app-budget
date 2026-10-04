@@ -144,6 +144,11 @@
   }
   .goal-status { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   .goal-status strong { color: var(--gold); font-weight: 600; }
+  .reglages { margin-top: 8px; }
+  .reglages > summary { cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 600; color: var(--gold); }
+  .mat-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  .mat-badge { font-size: 12px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text-muted); }
+  .mat-badge.on { border-color: var(--sage); color: var(--sage); background: rgba(141,169,143,0.14); font-weight: 600; }
 
   .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
   .tab-btn {
@@ -184,6 +189,71 @@
   <h1>Répartition fixe & commissions</h1>
   <p class="sub">Rentre tes montants, la répartition entre charges fixes, épargne logement et vie courante se calcule toute seule.</p>
 
+  <table>
+    <thead>
+      <tr>
+        <th class="sage">Fixe</th>
+        <th class="gold">Commissions</th>
+        <th style="width:1px"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button class="add-row" id="addRow" type="button">+ ajouter une ligne</button>
+
+  <div class="result" style="margin-top:24px;">
+    <div class="result-row">
+      <span>Charges fixes couvertes</span>
+      <span class="amt" id="outCharges">0 €</span>
+    </div>
+    <div class="result-row vie total">
+      <span><strong>Vers Matelas</strong> (300 € max / commission, en premier)</span>
+      <span class="amt" id="outMatelas">0 €</span>
+    </div>
+    <div class="result-row projet total">
+      <span><strong>Vers Pablo</strong> (200 € max / commission)</span>
+      <span class="amt" id="outPablo">0 €</span>
+    </div>
+    <div class="result-row logement total">
+      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>%<span id="splitSuffix"> des commissions</span>)</span>
+      <span class="amt" id="outLogement">0 €</span>
+    </div>
+    <div class="result-row surete total">
+      <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>%<span id="suretySuffix"> des commissions</span>)</span>
+      <span class="amt" id="outSurety">0 €</span>
+    </div>
+    <div class="result-row surete total">
+      <span><strong>Vers Dettes</strong> (<span id="debtLabel">0</span>%) <span id="debtLeft" class="by-person"></span></span>
+      <span class="amt" id="outDebt">0 €</span>
+    </div>
+    <div id="projetsResult"></div>
+    <div class="result-row vie total">
+      <span><strong>Vers Vie courante</strong></span>
+      <span class="amt" id="outVie">0 €</span>
+    </div>
+  </div>
+
+  <div class="goal-card" id="matCard">
+    <label class="projets-label">Matelas de sécurité</label>
+    <div class="goal-fields">
+      <div class="split-field">
+        <label for="matCurrentInput">Montant actuel (hors ce mois)</label>
+        <div class="split-input-row sage">
+          <input type="number" id="matCurrentInput" min="0" step="10" value="0">
+          <span>€</span>
+        </div>
+      </div>
+    </div>
+    <div class="goal-bar-wrap">
+      <div class="goal-bar"><div class="goal-bar-fill" id="matBarFill" style="background:var(--sage)"></div></div>
+    </div>
+    <div class="goal-status" id="matStatus"></div>
+    <div class="mat-badges" id="matBadges"></div>
+    <button class="add-row" id="matAdd" type="button">Clôturer le mois (l'ajoute au montant actuel et vide le tableau)</button>
+  </div>
+
+  <details class="reglages">
+    <summary>Réglages</summary>
   <div class="split-fields">
     <div class="split-field">
       <label for="chargesInput">Charges fixes / mois</label>
@@ -239,18 +309,6 @@
     <button class="add-row" id="addProjet" type="button">+ ajouter un projet</button>
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th class="sage">Fixe</th>
-        <th class="gold">Commissions</th>
-        <th style="width:1px"></th>
-      </tr>
-    </thead>
-    <tbody id="rows"></tbody>
-  </table>
-  <button class="add-row" id="addRow" type="button">+ ajouter une ligne</button>
-
   <div class="goal-card">
     <label class="projets-label">Objectif logement</label>
     <div class="goal-fields">
@@ -279,29 +337,7 @@
     <div class="goal-status" id="goalStatus"></div>
   </div>
 
-  <div class="result" style="margin-top:24px;">
-    <div class="result-row">
-      <span>Charges fixes couvertes</span>
-      <span class="amt" id="outCharges">0 €</span>
-    </div>
-    <div class="result-row logement total">
-      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>%<span id="splitSuffix"> des commissions</span>)</span>
-      <span class="amt" id="outLogement">0 €</span>
-    </div>
-    <div class="result-row surete total">
-      <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>%<span id="suretySuffix"> des commissions</span>)</span>
-      <span class="amt" id="outSurety">0 €</span>
-    </div>
-    <div class="result-row surete total">
-      <span><strong>Vers Dettes</strong> (<span id="debtLabel">0</span>%) <span id="debtLeft" class="by-person"></span></span>
-      <span class="amt" id="outDebt">0 €</span>
-    </div>
-    <div id="projetsResult"></div>
-    <div class="result-row vie total">
-      <span><strong>Vers Vie courante</strong></span>
-      <span class="amt" id="outVie">0 €</span>
-    </div>
-  </div>
+  </details>
   </div>
 
   <div id="tabDettes" style="display:none;">
@@ -348,6 +384,23 @@
   const SALE_KEY = 'repartition-simple-saleprice-v1';
   let salePrice = 200;
   try { const sp = localStorage.getItem(SALE_KEY); if (sp) salePrice = parseFloat(sp); } catch (e) {}
+  const MAT_KEY = 'repartition-simple-matelas-v1';
+  const MAT_GOAL = 1300, MAT_DAY = MAT_GOAL / 30, PABLO_FIX = 200, MAT_PER_COM = 300;
+  const MAT_STEPS = [{ amt: 300, days: 7 }, { amt: 650, days: 15 }, { amt: 1300, days: 30 }];
+  let matelas = 0, matMois = 0;
+  try { const m = localStorage.getItem(MAT_KEY); if (m) matelas = parseFloat(m) || 0; } catch (e) {}
+  function renderMatelas() {
+    const tot = matelas + matMois;
+    const pct = Math.min(tot / MAT_GOAL * 100, 100);
+    document.getElementById('matBarFill').style.width = pct + '%';
+    const days = Math.floor(tot * 30 / MAT_GOAL + 1e-9);
+    const plus = matMois > 0 ? ` Dont <strong>+${fmt(matMois)}</strong> ce mois-ci.` : '';
+    document.getElementById('matStatus').innerHTML = `<strong>${fmt(tot)}</strong> sur ${fmt(MAT_GOAL)} (${Math.round(pct)}%) — <strong>${days} jour${days > 1 ? 's' : ''}</strong> de vie couverts (base ${fmt(Math.round(MAT_DAY))}/jour).${plus}`;
+    document.getElementById('matBadges').innerHTML = MAT_STEPS.map(p => {
+      const ok = tot >= p.amt;
+      return `<span class="mat-badge${ok ? ' on' : ''}">${ok ? '✓ ' : ''}${fmt(p.amt)} · ${p.days} j</span>`;
+    }).join('');
+  }
   try { debts = JSON.parse(localStorage.getItem(DEBTS_KEY)) || []; } catch (e) { debts = []; }
   try { const dp = localStorage.getItem(DEBTPCT_KEY); if (dp) debtPct = parseFloat(dp); } catch (e) {}
   function totalDebt() { return debts.reduce((t, d) => t + (parseFloat(d.amount) || 0), 0); }
@@ -498,6 +551,18 @@
     const shortfall = Math.max(chargesFixes - totalRsa, 0);
     const comApresCharges = Math.max(totalCom - shortfall, 0);
 
+    // Règle par commission : matelas (300 €) -> Pablo (200 €) -> marge
+    let toCover = shortfall, remMat = Math.max(MAT_GOAL - matelas, 0);
+    let matTot = 0, pabTot = 0, margeTot = 0;
+    rows.forEach(r => {
+      let c = parseFloat(r.com) || 0;
+      const cut = Math.min(toCover, c); c -= cut; toCover -= cut;
+      const m = Math.min(MAT_PER_COM, c, remMat); remMat -= m;
+      const p = Math.min(PABLO_FIX, c - m);
+      matTot += m; pabTot += p; margeTot += c - m - p;
+    });
+    matMois = matTot;
+
     const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
 
     let comVersLogement, comVersSurety, comVersVie;
@@ -506,7 +571,7 @@
     const dette = totalDebt();
 
     if (mode === 'fixed') {
-      const pot = rsaVersVie + comApresCharges;
+      const pot = rsaVersVie + margeTot;
       const vieCourante = Math.min(vieFixed, pot);
       const resteAPartager = pot - vieCourante;
       const totalPoids = split + surety + totalProjetsPct + debtPct;
@@ -526,7 +591,7 @@
       comVersVie = vieCourante - rsaVersVie; // la part venant des commissions (rsaVersVie va directement dans vie aussi)
       document.getElementById('outVie').textContent = fmt(vieCourante);
     } else {
-      const pot = rsaVersVie + comApresCharges;
+      const pot = rsaVersVie + margeTot;
       comVersLogement = pot * (split / 100);
       comVersSurety = pot * (surety / 100);
       versDettes = Math.min(pot * (debtPct / 100), dette);
@@ -536,6 +601,9 @@
       document.getElementById('outVie').textContent = fmt(comVersVie);
     }
 
+    document.getElementById('outMatelas').textContent = fmt(matTot);
+    document.getElementById('outPablo').textContent = fmt(pabTot);
+    renderMatelas();
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
     document.getElementById('splitLabel').textContent = split;
@@ -591,7 +659,10 @@
     const monthlyNeeded = remaining / monthsLeft;
     status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} (${Math.round(pct)}%) — il reste ${fmt(remaining)} à trouver en ${daysLeft} jours, soit <strong>${fmt(monthlyNeeded)}/mois</strong> en moyenne.`;
     if (salePrice > 0 && share > 0) {
-      const perSale = salePrice * share;
+      const mm = Math.min(MAT_PER_COM, salePrice, Math.max(MAT_GOAL - matelas, 0));
+      const pp = Math.min(PABLO_FIX, salePrice - mm);
+      const perSale = (salePrice - mm - pp) * share;
+      if (perSale <= 0) { status.innerHTML += '<br>Aucune part de la vente n\'arrive au logement tant que le matelas et Pablo absorbent la commission.'; return; }
       const sales = Math.ceil(remaining / perSale);
       const perMonth = Math.ceil(sales / Math.max(monthsLeft, 1) * 10) / 10;
       status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente dont ${fmt(perSale)} vont au logement.`;
@@ -689,7 +760,24 @@
     compute();
   });
 
+  document.getElementById('matCurrentInput').addEventListener('input', (e) => {
+    matelas = Math.max(parseFloat(e.target.value) || 0, 0);
+    try { localStorage.setItem(MAT_KEY, String(matelas)); } catch (err) {}
+    compute();
+  });
+  document.getElementById('matAdd').addEventListener('click', () => {
+    if (!confirm('Ajouter ' + fmt(matMois) + ' au matelas et vider le tableau ?')) return;
+    matelas += matMois;
+    try { localStorage.setItem(MAT_KEY, String(matelas)); } catch (err) {}
+    rows = [{ rsa: '', com: '' }];
+    save();
+    renderRows();
+    document.getElementById('matCurrentInput').value = matelas;
+    compute();
+  });
+
   load();
+  document.getElementById('matCurrentInput').value = matelas;
   document.getElementById('salePriceInput').value = salePrice;
   document.getElementById('debtPctInput').value = debtPct;
   document.getElementById('chargesInput').value = chargesFixes;
