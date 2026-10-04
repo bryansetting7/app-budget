@@ -144,6 +144,15 @@
   }
   .goal-status { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   .goal-status strong { color: var(--gold); font-weight: 600; }
+  .lock { position: fixed; inset: 0; background: var(--bg); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .lock.hidden { display: none; }
+  .lock-box { text-align: center; width: 100%; max-width: 280px; }
+  .lock-title { font-size: 16px; font-weight: 600; color: var(--gold); margin-bottom: 18px; }
+  .lock-box input { width: 100%; text-align: center; font-size: 28px; letter-spacing: 14px; padding: 12px 0 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: inherit; font-family: inherit; }
+  .lock-box input:focus { outline: none; border-color: var(--gold); }
+  .lock-msg { min-height: 20px; margin-top: 12px; font-size: 13px; color: var(--rose); }
+  .lock.shake .lock-box input { animation: lockShake 0.3s; }
+  @keyframes lockShake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
   .reglages { margin-top: 8px; }
   .reglages > summary { cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 600; color: var(--gold); }
   .mat-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
@@ -179,6 +188,13 @@
 </style>
 </head>
 <body>
+<div class="lock" id="lock">
+  <div class="lock-box">
+    <div class="lock-title" id="lockTitle">Code</div>
+    <input type="password" id="lockInput" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+    <div class="lock-msg" id="lockMsg"></div>
+  </div>
+</div>
 <div class="wrap">
   <div class="tabs">
     <button type="button" class="tab-btn active" data-tab="repartition">Répartition</button>
@@ -857,6 +873,60 @@
   document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => showTab(b.getAttribute('data-tab'))));
   renderDebts();
   try { showTab(localStorage.getItem(TAB_KEY) || 'repartition'); } catch (e) {}
+})();
+</script>
+<script>
+(function () {
+  const KEY = 'repartition-simple-lock-v1';
+  const lock = document.getElementById('lock'), inp = document.getElementById('lockInput');
+  const title = document.getElementById('lockTitle'), msg = document.getElementById('lockMsg');
+  let stored = null, step = 'new', first = '', hiddenAt = 0;
+  try { stored = localStorage.getItem(KEY); } catch (e) {}
+  if (stored) step = 'check';
+
+  async function hash(t) {
+    t = 'bv-budget:' + t;
+    if (window.crypto && crypto.subtle) {
+      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+      return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    return 'f' + h;
+  }
+  function setStep(st, m) {
+    step = st; msg.textContent = m || '';
+    title.textContent = st === 'check' ? 'Entre ton code' : st === 'new' ? 'Choisis un code à 4 chiffres' : 'Confirme ton code';
+  }
+  function showLock() { lock.classList.remove('hidden'); inp.value = ''; setStep('check'); setTimeout(() => inp.focus(), 50); }
+  function unlock() { lock.classList.add('hidden'); inp.value = ''; msg.textContent = ''; inp.blur(); }
+  function fail(m) {
+    msg.textContent = m; lock.classList.remove('shake'); void lock.offsetWidth; lock.classList.add('shake');
+  }
+
+  inp.addEventListener('input', async () => {
+    inp.value = inp.value.replace(/\D/g, '');
+    if (inp.value.length < 4) return;
+    const v = inp.value; inp.value = '';
+    if (step === 'check') {
+      if ((await hash(v)) === stored) unlock(); else fail('Code incorrect');
+    } else if (step === 'new') {
+      first = v; setStep('confirm');
+    } else {
+      if (v === first) {
+        stored = await hash(v);
+        try { localStorage.setItem(KEY, stored); } catch (e) {}
+        unlock();
+      } else { setStep('new'); fail('Les codes ne correspondent pas'); }
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (stored && hiddenAt && Date.now() - hiddenAt > 60000) showLock();
+  });
+
+  setStep(step);
+  inp.focus();
 })();
 </script>
 </body>
