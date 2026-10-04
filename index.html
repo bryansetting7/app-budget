@@ -223,7 +223,7 @@
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row vie total">
-      <span><strong>Vers Matelas</strong> (300 € max / commission, en premier jusqu'à 650 €)</span>
+      <span><strong>Vers Matelas</strong></span>
       <span class="amt" id="outMatelas">0 €</span>
     </div>
     <div class="result-row projet total">
@@ -233,10 +233,6 @@
     <div class="result-row logement total">
       <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>%<span id="splitSuffix"> des commissions</span>)</span>
       <span class="amt" id="outLogement">0 €</span>
-    </div>
-    <div class="result-row surete total">
-      <span><strong>Vers Sûreté</strong> (<span id="suretyLabel">10</span>%<span id="suretySuffix"> des commissions</span>)</span>
-      <span class="amt" id="outSurety">0 €</span>
     </div>
     <div class="result-row surete total">
       <span><strong>Vers Dettes</strong> (<span id="debtLabel">0</span>%) <span id="debtLeft" class="by-person"></span></span>
@@ -332,7 +328,7 @@
       </div>
     </div>
     <div class="split-field">
-      <label for="suretyInput">Vers la sûreté</label>
+      <label for="suretyInput">Vers le matelas (après 650 €)</label>
       <div class="split-input-row rose">
         <input type="number" id="suretyInput" min="0" max="100" step="1" value="10">
         <span>%</span>
@@ -609,7 +605,10 @@
       if (totalPoids > 0) {
         versDettes = Math.min(resteAPartager * (debtPct / totalPoids), dette);
         comVersLogement = resteAPartager * (split / totalPoids);
-        comVersSurety = resteAPartager * (surety / totalPoids);
+        const surPart = resteAPartager * (surety / totalPoids);
+        const room = (matelas + matTot) >= MAT_PRIORITY ? Math.max(MAT_GOAL - (matelas + matTot), 0) : 0;
+        comVersSurety = Math.min(surPart, room);
+        comVersLogement += surPart - comVersSurety;
         versPablo = resteAPartager * (pabloPct / totalPoids);
         projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
         // surplus non utilisé pour les dettes (plafonné au total dû) -> logement
@@ -624,26 +623,27 @@
     } else {
       const pot = rsaVersVie + margeTot;
       comVersLogement = pot * (split / 100);
-      comVersSurety = pot * (surety / 100);
+      const surPart = pot * (surety / 100);
+      const room = (matelas + matTot) >= MAT_PRIORITY ? Math.max(MAT_GOAL - (matelas + matTot), 0) : 0;
+      comVersSurety = Math.min(surPart, room);
       versDettes = Math.min(pot * (debtPct / 100), dette);
       versPablo = pot * (pabloPct / 100);
       comVersLogement += pot * (debtPct / 100) - versDettes; // surplus dettes -> logement
+      comVersLogement += surPart - comVersSurety; // surplus matelas -> logement
       projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
       comVersVie = pot - comVersLogement - comVersSurety - versDettes - versPablo - projetsMontants.reduce((s, v) => s + v, 0);
       document.getElementById('outVie').textContent = fmt(comVersVie);
     }
 
-    document.getElementById('outMatelas').textContent = fmt(matTot);
+    matMois = matTot + comVersSurety;
+    document.getElementById('outMatelas').textContent = fmt(matMois);
     document.getElementById('outPablo').textContent = fmt(versPablo);
     document.getElementById('pabloLabel').textContent = pabloPct;
     renderMatelas();
     document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
     document.getElementById('outLogement').textContent = fmt(comVersLogement);
     document.getElementById('splitLabel').textContent = split;
-    document.getElementById('outSurety').textContent = fmt(comVersSurety);
-    document.getElementById('suretyLabel').textContent = surety;
-    document.getElementById('splitSuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
-    document.getElementById('suretySuffix').textContent = mode === 'fixed' ? ' du poids' : ' du reste';
+    document.getElementById('splitSuffix').textContent = '';
     renderProjetsResult(projetsMontants);
     document.getElementById('outDebt').textContent = fmt(versDettes);
     document.getElementById('debtLabel').textContent = debtPct;
