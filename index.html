@@ -611,8 +611,6 @@
         comVersLogement += surPart - comVersSurety;
         versPablo = resteAPartager * (pabloPct / totalPoids);
         projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
-        // surplus non utilisé pour les dettes (plafonné au total dû) -> logement
-        comVersLogement += resteAPartager * (debtPct / totalPoids) - versDettes;
       } else {
         comVersLogement = 0;
         comVersSurety = 0;
@@ -628,8 +626,7 @@
       comVersSurety = Math.min(surPart, room);
       versDettes = Math.min(pot * (debtPct / 100), dette);
       versPablo = pot * (pabloPct / 100);
-      comVersLogement += pot * (debtPct / 100) - versDettes; // surplus dettes -> logement
-      comVersLogement += surPart - comVersSurety; // surplus matelas -> logement
+      // CORRECTIF : les surplus (dettes soldées, matelas plein) ne vont plus au logement, ils restent dans Vie courante
       projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
       comVersVie = pot - comVersLogement - comVersSurety - versDettes - versPablo - projetsMontants.reduce((s, v) => s + v, 0);
       document.getElementById('outVie').textContent = fmt(comVersVie);
@@ -649,8 +646,7 @@
     document.getElementById('debtLabel').textContent = debtPct;
     document.getElementById('debtLeft').textContent = dette > 0 ? '· reste dû ' + fmt(Math.max(dette - versDettes, 0)) : '· aucune dette';
 
-    const debtsCleared = (dette - versDettes) <= 0;
-    const poidsLog = split + (debtsCleared ? debtPct : 0);
+    const poidsLog = split;
     let share;
     if (mode === 'fixed') {
       const tp = split + surety + totalProjetsPct + pabloPct + debtPct;
