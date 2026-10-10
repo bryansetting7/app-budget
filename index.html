@@ -223,8 +223,8 @@
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row vie total">
-      <span><strong>Vers Matelas</strong></span>
-      <span class="amt" id="outMatelas">0 €</span>
+      <span><strong>Vers Cotisations</strong> (30% des commissions)</span>
+      <span class="amt" id="outCotis">0 €</span>
     </div>
     <div class="result-row projet total">
       <span><strong>Vers Pablo</strong> (<span id="pabloLabel">10</span>%)</span>
@@ -261,7 +261,7 @@
     </div>
     <div class="goal-status" id="matStatus"></div>
     <div class="mat-badges" id="matBadges"></div>
-    <button class="add-row" id="matAdd" type="button">Clôturer le mois (l'ajoute au montant actuel et vide le tableau)</button>
+    <button class="add-row" id="matAdd" type="button">Clôturer le mois (vide le tableau)</button>
   </div>
 
   <div class="goal-card">
@@ -327,7 +327,7 @@
         <span>%</span>
       </div>
     </div>
-    <div class="split-field">
+    <div class="split-field" style="display:none">
       <label for="suretyInput">Vers le matelas (après 650 €)</label>
       <div class="split-input-row rose">
         <input type="number" id="suretyInput" min="0" max="100" step="1" value="10">
@@ -404,6 +404,7 @@
   let salePrice = 200;
   try { const sp = localStorage.getItem(SALE_KEY); if (sp) salePrice = parseFloat(sp); } catch (e) {}
   const MAT_KEY = 'repartition-simple-matelas-v1';
+  const COTIS_PCT = 30;
   const MAT_PRIORITY = 650, MAT_GOAL = 1300, MAT_DAY = MAT_GOAL / 30, PABLO_FIX = 200, MAT_PER_COM = 300;
   const MAT_STEPS = [{ amt: 300, days: 7 }, { amt: 650, days: 15 }, { amt: 1300, days: 30 }];
   const PABLOPCT_KEY = 'repartition-simple-pablopct-v1';
@@ -578,16 +579,13 @@
     const shortfall = Math.max(chargesFixes - totalRsa, 0);
     const comApresCharges = Math.max(totalCom - shortfall, 0);
 
-    // Règle par commission : matelas (300 €, jusqu'à 650 €) -> le reste est réparti en %
-    let toCover = shortfall, remMat = Math.max(MAT_PRIORITY - matelas, 0);
-    let matTot = 0, margeTot = 0, versPablo = 0;
-    rows.forEach(r => {
-      let c = parseFloat(r.com) || 0;
-      const cut = Math.min(toCover, c); c -= cut; toCover -= cut;
-      const m = Math.min(MAT_PER_COM, c, remMat); remMat -= m;
-      matTot += m; margeTot += c - m;
-    });
-    matMois = matTot;
+    // Micro-entreprise : 30 % des commissions vont automatiquement en cotisations
+    const cotis = totalCom * (COTIS_PCT / 100);
+    const matTot = 0;
+    const versPabloInit = 0;
+    let versPablo = versPabloInit;
+    const margeTot = Math.max(totalCom - cotis - shortfall, 0);
+    matMois = 0;
 
     const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
 
@@ -600,15 +598,12 @@
       const pot = rsaVersVie + margeTot;
       const vieCourante = Math.min(vieFixed, pot);
       const resteAPartager = pot - vieCourante;
-      const totalPoids = split + surety + totalProjetsPct + debtPct + pabloPct;
+      const totalPoids = split + totalProjetsPct + debtPct + pabloPct;
 
       if (totalPoids > 0) {
         versDettes = Math.min(resteAPartager * (debtPct / totalPoids), dette);
         comVersLogement = resteAPartager * (split / totalPoids);
-        const surPart = resteAPartager * (surety / totalPoids);
-        const room = (matelas + matTot) >= MAT_PRIORITY ? Math.max(MAT_GOAL - (matelas + matTot), 0) : 0;
-        comVersSurety = Math.min(surPart, room);
-        comVersLogement += surPart - comVersSurety;
+        comVersSurety = 0;
         versPablo = resteAPartager * (pabloPct / totalPoids);
         projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
       } else {
@@ -621,9 +616,7 @@
     } else {
       const pot = rsaVersVie + margeTot;
       comVersLogement = pot * (split / 100);
-      const surPart = pot * (surety / 100);
-      const room = (matelas + matTot) >= MAT_PRIORITY ? Math.max(MAT_GOAL - (matelas + matTot), 0) : 0;
-      comVersSurety = Math.min(surPart, room);
+      comVersSurety = 0;
       versDettes = Math.min(pot * (debtPct / 100), dette);
       versPablo = pot * (pabloPct / 100);
       // CORRECTIF : les surplus (dettes soldées, matelas plein) ne vont plus au logement, ils restent dans Vie courante
@@ -632,8 +625,8 @@
       document.getElementById('outVie').textContent = fmt(comVersVie);
     }
 
-    matMois = matTot + comVersSurety;
-    document.getElementById('outMatelas').textContent = fmt(matMois);
+    matMois = 0;
+    document.getElementById('outCotis').textContent = fmt(cotis);
     document.getElementById('outPablo').textContent = fmt(versPablo);
     document.getElementById('pabloLabel').textContent = pabloPct;
     renderMatelas();
@@ -649,7 +642,7 @@
     const poidsLog = split;
     let share;
     if (mode === 'fixed') {
-      const tp = split + surety + totalProjetsPct + pabloPct + debtPct;
+      const tp = split + totalProjetsPct + pabloPct + debtPct;
       share = tp > 0 ? poidsLog / tp : 0;
     } else {
       share = poidsLog / 100;
@@ -690,11 +683,10 @@
     if (salePrice > 0 && share > 0) {
       let remMat = Math.max(MAT_PRIORITY - (matelas + matMois), 0), left = remaining, sales = 0, got = 0;
       while (left > 0 && sales < 1000) {
-        const mm = Math.min(MAT_PER_COM, salePrice, remMat); remMat -= mm;
-        got = (salePrice - mm) * share; left -= got; sales++;
+        got = salePrice * (1 - COTIS_PCT / 100) * share; left -= got; sales++;
       }
       const perMonth = Math.ceil(sales / Math.max(monthsLeft, 1) * 10) / 10;
-      status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente (le matelas passe d'abord jusqu'à ${fmt(MAT_PRIORITY)}).`;
+      status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente (après ${COTIS_PCT}% de cotisations).`;
     } else if (salePrice > 0) {
       status.innerHTML += '<br>Mets un % vers le logement pour voir le nombre de ventes à faire.';
     }
@@ -797,7 +789,7 @@
     compute();
   });
   document.getElementById('matAdd').addEventListener('click', () => {
-    if (!confirm('Ajouter ' + fmt(matMois) + ' au matelas et vider le tableau ?')) return;
+    if (!confirm('Vider le tableau du mois ?')) return;
     matelas += matMois;
     try { localStorage.setItem(MAT_KEY, String(matelas)); } catch (err) {}
     rows = [{ rsa: '', com: '' }];
