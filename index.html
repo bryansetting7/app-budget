@@ -223,7 +223,7 @@
       <span class="amt" id="outCharges">0 €</span>
     </div>
     <div class="result-row vie total">
-      <span><strong>Vers Cotisations</strong> (30% des commissions)</span>
+      <span><strong>Vers Cotisations</strong> (<span id="cotisLabel">30</span>% des commissions)</span>
       <span class="amt" id="outCotis">0 €</span>
     </div>
     <div class="result-row projet total">
@@ -342,6 +342,13 @@
       </div>
     </div>
     <div class="split-field">
+      <label for="cotisPctInput">Cotisations (% des commissions)</label>
+      <div class="split-input-row rose">
+        <input type="number" id="cotisPctInput" min="0" max="100" step="0.1" value="30">
+        <span>%</span>
+      </div>
+    </div>
+    <div class="split-field">
       <label for="pabloPctInput">Vers Pablo</label>
       <div class="split-input-row blue">
         <input type="number" id="pabloPctInput" min="0" max="100" step="1" value="10">
@@ -404,7 +411,9 @@
   let salePrice = 200;
   try { const sp = localStorage.getItem(SALE_KEY); if (sp) salePrice = parseFloat(sp); } catch (e) {}
   const MAT_KEY = 'repartition-simple-matelas-v1';
-  const COTIS_PCT = 30;
+  const COTIS_KEY = 'repartition-simple-cotis-v1';
+  let COTIS_PCT = 30;
+  try { const cp = localStorage.getItem(COTIS_KEY); if (cp !== null) COTIS_PCT = parseFloat(cp) || 0; } catch (e) {}
   const MAT_PRIORITY = 650, MAT_GOAL = 1300, MAT_DAY = MAT_GOAL / 30, PABLO_FIX = 200, MAT_PER_COM = 300;
   const MAT_STEPS = [{ amt: 300, days: 7 }, { amt: 650, days: 15 }, { amt: 1300, days: 30 }];
   const PABLOPCT_KEY = 'repartition-simple-pablopct-v1';
@@ -627,6 +636,7 @@
 
     matMois = 0;
     document.getElementById('outCotis').textContent = fmt(cotis);
+    document.getElementById('cotisLabel').textContent = COTIS_PCT;
     document.getElementById('outPablo').textContent = fmt(versPablo);
     document.getElementById('pabloLabel').textContent = pabloPct;
     renderMatelas();
@@ -799,6 +809,12 @@
     compute();
   });
 
+  document.getElementById('cotisPctInput').addEventListener('input', (e) => {
+    COTIS_PCT = Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 100);
+    try { localStorage.setItem(COTIS_KEY, String(COTIS_PCT)); } catch (err) {}
+    compute();
+  });
+
   document.getElementById('pabloPctInput').addEventListener('input', (e) => {
     pabloPct = Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 100);
     try { localStorage.setItem(PABLOPCT_KEY, String(pabloPct)); } catch (err) {}
@@ -807,6 +823,7 @@
 
   load();
   document.getElementById('pabloPctInput').value = pabloPct;
+  document.getElementById('cotisPctInput').value = COTIS_PCT;
   document.getElementById('matCurrentInput').value = matelas;
   document.getElementById('salePriceInput').value = salePrice;
   document.getElementById('debtPctInput').value = debtPct;
