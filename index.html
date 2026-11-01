@@ -240,35 +240,7 @@
     <button class="add-row" id="matAdd" type="button">Clôturer le mois (vide le tableau)</button>
   </div>
 
-  <div class="goal-card">
-    <label class="projets-label">Objectif logement</label>
-    <div class="goal-fields">
-      <div class="split-field">
-        <label for="goalAmountInput">Montant visé</label>
-        <div class="split-input-row gold">
-          <input type="number" id="goalAmountInput" min="0" step="10" value="1500">
-          <span>€</span>
-        </div>
-      </div>
-      <div class="split-field">
-        <label for="goalDateInput">Date visée</label>
-        <input type="date" id="goalDateInput" class="date-input">
-      </div>
-      <div class="split-field">
-        <label for="salePriceInput">Commission / vente</label>
-        <div class="split-input-row gold">
-          <input type="number" id="salePriceInput" min="0" step="10" value="200">
-          <span>€</span>
-        </div>
-      </div>
-    </div>
-    <div class="goal-bar-wrap">
-      <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
-    </div>
-    <div class="goal-status" id="goalStatus"></div>
-  </div>
-
-  <div class="goal-card"><label class="projets-label">Historique des mois</label><div id="histo"></div></div>
+  <div class="goal-card"><label class="projets-label">Historique des mois</label><div id="charts"></div><div id="histo"></div></div>
 
   <details class="reglages">
     <summary>Réglages</summary>
@@ -287,9 +259,9 @@
     <button type="button" class="mode-btn" data-mode="fixed">Vie courante fixe</button>
   </div>
 
-  <div class="split-fields" id="vieFixedField" style="display:none;">
+  <div class="split-fields" id="vieFixedField">
     <div class="split-field">
-      <label for="vieFixedInput">Vie courante visée</label>
+      <label for="vieFixedInput">Vie courante / mois (visée, base du matelas)</label>
       <div class="split-input-row sage">
         <input type="number" id="vieFixedInput" min="0" step="10" value="1000">
         <span>€</span>
@@ -297,11 +269,12 @@
     </div>
   </div>
 
-  <div style="display:none"><input id="splitInput"><input id="suretyInput"><input id="debtPctInput"><input id="pabloPctInput"><div id="projetsRows"></div><button id="addProjet" type="button"></button></div>
+  <div style="display:none"><input id="goalAmountInput"><input id="goalDateInput"><input id="splitInput"><input id="suretyInput"><input id="debtPctInput"><input id="pabloPctInput"><div id="projetsRows"></div><button id="addProjet" type="button"></button></div>
   <div class="split-fields">
     <div class="split-field"><label for="cotisPctInput">Cotisations (% des commissions)</label><div class="split-input-row rose"><input type="number" id="cotisPctInput" min="0" max="100" step="0.1" value="30"><span>%</span></div></div>
     <div class="split-field"><label for="tvaPctInput">Réserve TVA (% des commissions)</label><div class="split-input-row rose"><input type="number" id="tvaPctInput" min="0" max="100" step="0.1" value="0"><span>%</span></div></div>
   </div>
+  <div class="split-fields"><div class="split-field"><label for="salePriceInput">Commission / vente</label><div class="split-input-row gold"><input type="number" id="salePriceInput" min="0" step="10" value="200"><span>€</span></div></div></div>
   <div class="projets-block"><label class="projets-label">Catégories : % du salaire fixe / % des commissions (indépendants)</label><div id="catsBox"></div><button class="add-row" id="addCat" type="button">+ ajouter une catégorie</button></div>
   </details>
   </div>
@@ -354,29 +327,24 @@
   const COTIS_KEY = 'repartition-simple-cotis-v1';
   let COTIS_PCT = 30;
   try { const cp = localStorage.getItem(COTIS_KEY); if (cp !== null) COTIS_PCT = parseFloat(cp) || 0; } catch (e) {}
-  const MAT_PRIORITY = 650, MAT_GOAL = 1300, MAT_DAY = MAT_GOAL / 30, PABLO_FIX = 200, MAT_PER_COM = 300;
-  const MAT_STEPS = [{ amt: 300, days: 7 }, { amt: 650, days: 15 }, { amt: 1300, days: 30 }];
+  let secuShare = 0, last = {};
   const PABLOPCT_KEY = 'repartition-simple-pablopct-v1';
   let pabloPct = 10;
   try { const pp = localStorage.getItem(PABLOPCT_KEY); if (pp !== null) pabloPct = parseFloat(pp) || 0; } catch (e) {}
   let matelas = 0, matMois = 0;
   try { const m = localStorage.getItem(MAT_KEY); if (m) matelas = parseFloat(m) || 0; } catch (e) {}
   function renderMatelas() {
-    const tot = matelas + matMois;
-    const pct = Math.min(tot / MAT_GOAL * 100, 100);
+    const day = Math.max((chargesFixes + vieFixed) / 30, 1), goal = day * 90, prio = day * 15;
+    const tot = matelas + matMois, pct = Math.min(tot / goal * 100, 100), days = Math.floor(tot / day + 1e-9);
     document.getElementById('matBarFill').style.width = pct + '%';
-    const days = Math.floor(tot * 30 / MAT_GOAL + 1e-9);
-    let salesMat = '';
-    if (salePrice > 0) {
-      if (tot >= MAT_PRIORITY) salesMat = `<br>Palier prioritaire de ${fmt(MAT_PRIORITY)} atteint.`;
-      else { const n = Math.ceil((MAT_PRIORITY - tot) / Math.min(MAT_PER_COM, salePrice)); salesMat = `<br><strong>${n} vente${n > 1 ? 's' : ''}</strong> à faire pour atteindre ${fmt(MAT_PRIORITY)}.`; }
-    }
+    const per = salePrice * (1 - (COTIS_PCT + TVA_PCT) / 100) * secuShare;
+    let more;
+    if (tot >= prio) more = '<br>Palier de 15 j atteint.';
+    else if (per > 0) { const n = Math.ceil((prio - tot) / per); more = `<br><strong>${n} vente${n > 1 ? 's' : ''}</strong> pour atteindre ${fmt(prio)} (15 j).`; }
+    else more = '<br>Mets un % vers Épargne de sécurité.';
     const plus = matMois > 0 ? ` Dont <strong>+${fmt(matMois)}</strong> ce mois-ci.` : '';
-    document.getElementById('matStatus').innerHTML = `<strong>${fmt(tot)}</strong> sur ${fmt(MAT_GOAL)} (${Math.round(pct)}%) — <strong>${days} jour${days > 1 ? 's' : ''}</strong> de vie couverts (base ${fmt(Math.round(MAT_DAY))}/jour).${plus}${salesMat}`;
-    document.getElementById('matBadges').innerHTML = MAT_STEPS.map(p => {
-      const ok = tot >= p.amt;
-      return `<span class="mat-badge${ok ? ' on' : ''}">${ok ? '✓ ' : ''}${fmt(p.amt)} · ${p.days} j</span>`;
-    }).join('');
+    document.getElementById('matStatus').innerHTML = `<strong>${fmt(tot)}</strong> sur ${fmt(goal)} (${Math.round(pct)}%) — <strong>${days} j</strong> de vie couverts (base ${fmt(day)}/j = charges + vie courante).${plus}${more}`;
+    document.getElementById('matBadges').innerHTML = [7, 15, 30, 90].map(d => { const ok = tot >= d * day; return `<span class="mat-badge${ok ? ' on' : ''}">${ok ? '✓ ' : ''}${d} j · ${fmt(d * day)}</span>`; }).join('');
   }
   try { debts = JSON.parse(localStorage.getItem(DEBTS_KEY)) || []; } catch (e) { debts = []; }
   try { const dp = localStorage.getItem(DEBTPCT_KEY); if (dp) debtPct = parseFloat(dp); } catch (e) {}
@@ -508,6 +476,7 @@
   function initCats() {
     try { base = JSON.parse(localStorage.getItem(CATS_KEY)); } catch (e) {}
     if (!base) base = { log: { f: split, c: split }, pablo: { f: pabloPct, c: pabloPct }, debt: { f: debtPct, c: debtPct } };
+    if (!base.secu) base.secu = { f: surety, c: surety };
     projets.forEach(p => { if (p.pctC === undefined) p.pctC = p.pct; });
     try { const t = localStorage.getItem(TVA_KEY); if (t) TVA_PCT = parseFloat(t) || 0; } catch (e) {}
     try { hist = JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { hist = []; }
@@ -515,6 +484,7 @@
   }
   const allCats = () => [
     { id: 'log', name: 'Projet logement', f: base.log.f, c: base.log.c },
+    { id: 'secu', name: 'Épargne de sécurité', f: base.secu.f, c: base.secu.c },
     { id: 'pablo', name: 'Pablo', f: base.pablo.f, c: base.pablo.c },
     { id: 'debt', name: 'Dettes', f: base.debt.f, c: base.debt.c }
   ].concat(projets.map((p, i) => ({ id: 'p' + i, name: p.name || 'Projet', f: parseFloat(p.pct) || 0, c: parseFloat(p.pctC) || 0 })));
@@ -540,11 +510,24 @@
   function pushHisto() {
     const F = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0), C = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
     if (!F && !C) return;
-    hist.unshift({ d: new Date().toISOString().slice(0, 10), F, C, det: rows.map(r => Object.assign({}, r)) });
+    hist.unshift({ d: new Date().toISOString().slice(0, 10), F, C, sec: last.sec, log: last.log, oth: last.oth, vie: last.vie, det: rows.map(r => Object.assign({}, r)) });
     try { localStorage.setItem(HIST_KEY, JSON.stringify(hist)); } catch (e) {}
     renderHisto();
   }
+  function chart(lab, ser, bar) {
+    const W = 520, H = 170, p = 26, mx = Math.max(1, ...ser.flatMap(x => x.v)), st = (W - 2 * p) / lab.length;
+    let g = `<text x="${p}" y="12" style="fill:var(--text-muted);font-size:10px">max ${fmt(mx)}</text>`;
+    ser.forEach((x, k) => {
+      if (bar) { const bw = st / (ser.length + 1); x.v.forEach((v, i) => { const h = (H - 2 * p) * v / mx; g += `<rect x="${p + i * st + bw * (k + .5)}" y="${H - p - h}" width="${bw}" height="${h}" rx="2" style="fill:var(${x.c})"/>`; }); }
+      else { g += `<polyline fill="none" stroke-width="2.5" style="stroke:var(${x.c})" points="${x.v.map((v, i) => (p + i * st + st / 2) + ',' + (H - p - (H - 2 * p) * v / mx)).join(' ')}"/>`; x.v.forEach((v, i) => { g += `<circle r="3.5" cx="${p + i * st + st / 2}" cy="${H - p - (H - 2 * p) * v / mx}" style="fill:var(${x.c})"/>`; }); }
+    });
+    lab.forEach((l, i) => { g += `<text x="${p + i * st + st / 2}" y="${H - 8}" text-anchor="middle" style="fill:var(--text-muted);font-size:10px">${l}</text>`; });
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%">${g}</svg><div class="by-person">${ser.map(x => `<span style="color:var(${x.c})">●</span> ${x.n}`).join(' &nbsp; ')}</div>`;
+  }
   function renderHisto() {
+    const h12 = hist.slice(0, 12).reverse(); let cum = 0;
+    const ep = h12.map(h => (h.sec || 0) + (h.log || 0) + (h.oth || 0));
+    document.getElementById('charts').innerHTML = h12.length ? '<div class="by-person" style="margin:6px 0">Commissions et épargne par mois</div>' + chart(h12.map(h => h.d.slice(5, 7) + '/' + h.d.slice(2, 4)), [{ n: 'Commissions', c: '--gold', v: h12.map(h => h.C) }, { n: 'Épargne', c: '--sage', v: ep }], true) + '<div class="by-person" style="margin:12px 0 6px">Patrimoine cumulé (tout ce qui est mis de côté) — matelas : ' + fmt(matelas) + '</div>' + chart(h12.map(h => h.d.slice(5, 7) + '/' + h.d.slice(2, 4)), [{ n: 'Patrimoine cumulé', c: '--blue', v: ep.map(v => (cum += v)) }], false) : '';
     document.getElementById('histo').innerHTML = hist.length ? hist.map(h => `<details style="margin-bottom:6px"><summary class="by-person" style="cursor:pointer">${h.d} · Fixe ${fmt(h.F)} · Commissions ${fmt(h.C)}</summary>${(h.det || []).filter(r => parseFloat(r.com)).map(r => `<div class="by-person" style="padding:4px 0 0 14px">${esc(r.date)} ${esc(r.note)} — ${fmt(parseFloat(r.com))}</div>`).join('')}</details>`).join('') : '<div class="by-person">Aucun mois clôturé.</div>';
   }
 
@@ -582,51 +565,11 @@
       ${list.map((x, i) => tr(`${esc(x.name)}<br><span class="by-person">${x.f} % · ${x.c} %</span>`, res[i].f, res[i].c)).join('')}
       ${tr('Vie courante', vieF, vieC)}${tr('<strong>Total</strong>', resteF, dispoC, r2(resteF + dispoC))}</tbody></table>${warn('f', 'Salaire fixe')}${warn('c', 'Commissions')}</div>`;
 
-    matMois = 0; renderMatelas();
+    matMois = r2(res[1].f + res[1].c);
+    last = { F, C, sec: matMois, log: r2(res[0].f + res[0].c), oth: r2(res.slice(2).reduce((t, x) => t + x.f + x.c, 0)), vie: r2(vieF + vieC) };
     const kc = mode === 'fixed' ? (sums.c > 0 ? 1 / sums.c : 0) : (sums.c > 100 ? 1 / sums.c : 0.01);
-    renderGoal(r2(res[0].f + res[0].c), list[0].c * kc);
-  }
-
-  function renderGoal(logementCeMois, share) {
-    const fill = document.getElementById('goalBarFill');
-    const status = document.getElementById('goalStatus');
-    const pct = goalAmount > 0 ? Math.min((logementCeMois / goalAmount) * 100, 100) : 0;
-    fill.style.width = pct + '%';
-
-    if (!goalDate) {
-      status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} visés (${Math.round(pct)}%). Ajoute une date pour voir le rythme nécessaire.`;
-      return;
-    }
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const target = new Date(goalDate);
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const daysLeft = Math.round((target - today) / msPerDay);
-    const remaining = Math.max(goalAmount - logementCeMois, 0);
-
-    if (remaining <= 0) {
-      status.innerHTML = `<strong>Objectif atteint</strong> (${fmt(logementCeMois)} sur ${fmt(goalAmount)}).`;
-      return;
-    }
-    if (daysLeft <= 0) {
-      status.innerHTML = `Échéance dépassée — il manque encore <strong>${fmt(remaining)}</strong> pour atteindre l'objectif.`;
-      return;
-    }
-
-    const monthsLeft = daysLeft / 30.44;
-    const monthlyNeeded = remaining / monthsLeft;
-    status.innerHTML = `<strong>${fmt(logementCeMois)}</strong> sur ${fmt(goalAmount)} (${Math.round(pct)}%) — il reste ${fmt(remaining)} à trouver en ${daysLeft} jours, soit <strong>${fmt(monthlyNeeded)}/mois</strong> en moyenne.`;
-    if (salePrice > 0 && share > 0) {
-      let remMat = Math.max(MAT_PRIORITY - (matelas + matMois), 0), left = remaining, sales = 0, got = 0;
-      while (left > 0 && sales < 1000) {
-        got = salePrice * (1 - (COTIS_PCT + TVA_PCT) / 100) * share; left -= got; sales++;
-      }
-      const perMonth = Math.ceil(sales / Math.max(monthsLeft, 1) * 10) / 10;
-      status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente (après ${COTIS_PCT}% de cotisations).`;
-    } else if (salePrice > 0) {
-      status.innerHTML += '<br>Mets un % vers le logement pour voir le nombre de ventes à faire.';
-    }
+    secuShare = list[1].c * kc;
+    renderMatelas();
   }
 
   document.getElementById('chargesInput').addEventListener('input', (e) => {
@@ -675,7 +618,7 @@
       btn.classList.add('active');
       mode = btn.getAttribute('data-mode');
       saveMode();
-      document.getElementById('vieFixedField').style.display = mode === 'fixed' ? 'flex' : 'none';
+      document.getElementById('vieFixedField').style.display = 'flex';
       compute();
     });
   });
@@ -765,7 +708,7 @@
   document.querySelectorAll('.mode-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-mode') === mode);
   });
-  document.getElementById('vieFixedField').style.display = mode === 'fixed' ? 'flex' : 'none';
+  document.getElementById('vieFixedField').style.display = 'flex';
   document.getElementById('vieFixedInput').value = vieFixed;
   document.getElementById('goalAmountInput').value = goalAmount;
   if (goalDate) document.getElementById('goalDateInput').value = goalDate;
