@@ -341,7 +341,7 @@
     let more;
     if (tot >= prio) more = '<br>Palier de 15 j atteint.';
     else if (per > 0) { const n = Math.ceil((prio - tot) / per); more = `<br><strong>${n} vente${n > 1 ? 's' : ''}</strong> pour atteindre ${fmt(prio)} (15 j).`; }
-    else more = '<br>Mets un % vers Épargne de sécurité.';
+    else more = '<br>Mets un % et « → matelas » sur ta catégorie sécurité.';
     const plus = matMois > 0 ? ` Dont <strong>+${fmt(matMois)}</strong> ce mois-ci.` : '';
     document.getElementById('matStatus').innerHTML = `<strong>${fmt(tot)}</strong> sur ${fmt(goal)} (${Math.round(pct)}%) — <strong>${days} j</strong> de vie couverts (base ${fmt(day)}/j = charges + vie courante).${plus}${more}`;
     document.getElementById('matBadges').innerHTML = [7, 15, 30, 90].map(d => { const ok = tot >= d * day; return `<span class="mat-badge${ok ? ' on' : ''}">${ok ? '✓ ' : ''}${d} j · ${fmt(d * day)}</span>`; }).join('');
@@ -473,38 +473,48 @@
   const CATS_KEY = 'repartition-simple-cats-v2', TVA_KEY = 'repartition-simple-tva-v1', HIST_KEY = 'repartition-simple-hist-v1';
   let base = null, TVA_PCT = 0, hist = [];
   const r2 = x => Math.round((x + 1e-9) * 100) / 100;
+  const CATS2_KEY = 'repartition-simple-cats-v3';
+  let cats = [];
+  const newId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const saveCats = () => { try { localStorage.setItem(CATS2_KEY, JSON.stringify(cats)); } catch (e) {} };
   function initCats() {
-    try { base = JSON.parse(localStorage.getItem(CATS_KEY)); } catch (e) {}
-    if (!base) base = { log: { f: split, c: split }, pablo: { f: pabloPct, c: pabloPct }, debt: { f: debtPct, c: debtPct } };
-    if (!base.secu) base.secu = { f: surety, c: surety };
-    projets.forEach(p => { if (p.pctC === undefined) p.pctC = p.pct; });
+    try { cats = JSON.parse(localStorage.getItem(CATS2_KEY)); } catch (e) {}
+    if (!Array.isArray(cats)) {
+      let b = null; try { b = JSON.parse(localStorage.getItem(CATS_KEY)); } catch (e) {}
+      b = b || { log: { f: split, c: split }, pablo: { f: pabloPct, c: pabloPct }, debt: { f: debtPct, c: debtPct } };
+      const sec = b.secu || { f: surety, c: surety };
+      const pj = projets.map(p => ({ name: p.name || 'Projet', f: parseFloat(p.pct) || 0, c: parseFloat(p.pctC !== undefined ? p.pctC : p.pct) || 0 }));
+      const dup = pj.find(p => /s[ée]curit/i.test(p.name)), skip = dup && !sec.f && !sec.c;
+      if (skip) dup.mat = true;
+      cats = [{ name: 'Projet logement', f: b.log.f, c: b.log.c }]
+        .concat(skip ? [] : [{ name: 'Épargne de sécurité', f: sec.f, c: sec.c, mat: true }])
+        .concat([{ name: 'Pablo', f: b.pablo.f, c: b.pablo.c }, { name: 'Dettes', f: b.debt.f, c: b.debt.c, debt: true }], pj);
+      cats.forEach(x => { x.id = newId(); });
+      saveCats();
+    }
     try { const t = localStorage.getItem(TVA_KEY); if (t) TVA_PCT = parseFloat(t) || 0; } catch (e) {}
     try { hist = JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { hist = []; }
     document.getElementById('tvaPctInput').value = TVA_PCT;
   }
-  const allCats = () => [
-    { id: 'log', name: 'Projet logement', f: base.log.f, c: base.log.c },
-    { id: 'secu', name: 'Épargne de sécurité', f: base.secu.f, c: base.secu.c },
-    { id: 'pablo', name: 'Pablo', f: base.pablo.f, c: base.pablo.c },
-    { id: 'debt', name: 'Dettes', f: base.debt.f, c: base.debt.c }
-  ].concat(projets.map((p, i) => ({ id: 'p' + i, name: p.name || 'Projet', f: parseFloat(p.pct) || 0, c: parseFloat(p.pctC) || 0 })));
+  const allCats = () => cats;
 
   function renderCats() {
-    const inp = (id, k, v) => `<div class="pct-wrap"><input type="number" min="0" max="100" step="0.5" data-cid="${id}" data-k="${k}" value="${v}"><span>%</span></div>`;
-    document.getElementById('catsBox').innerHTML = '<div class="projet-row" style="font-size:12px;color:var(--text-muted)"><span style="flex:1">Catégorie</span><span style="width:76px">% fixe</span><span style="width:76px">% comm.</span><span style="width:20px"></span></div>' +
-      allCats().map(x => {
-        const pj = /^p\d/.test(x.id);
-        return `<div class="projet-row">${pj ? `<input type="text" placeholder="Nom du projet" data-pn="${x.id.slice(1)}" value="${esc(projets[x.id.slice(1)].name)}">` : `<span style="flex:1;font-size:15px">${x.name}</span>`}${inp(x.id, 'f', x.f)}${inp(x.id, 'c', x.c)}${pj ? `<button class="row-del" data-pdl="${x.id.slice(1)}" aria-label="Supprimer">×</button>` : '<span style="width:20px"></span>'}</div>`;
-      }).join('');
     const box = document.getElementById('catsBox');
+    const inp = (id, k, v) => `<div class="pct-wrap"><input type="number" min="0" max="100" step="0.5" data-cid="${id}" data-k="${k}" value="${v}"><span>%</span></div>`;
+    const tg = (id, k, on, t) => `<button type="button" class="mat-badge${on ? ' on' : ''}" data-tg="${id}" data-k="${k}" style="cursor:pointer;font-family:inherit">${t}</button>`;
+    box.innerHTML = '<div class="projet-row" style="font-size:12px;color:var(--text-muted)"><span style="flex:1">Catégorie</span><span style="width:76px">% fixe</span><span style="width:76px">% comm.</span><span style="width:20px"></span></div>' +
+      cats.map(x => `<div class="projet-row"><input type="text" placeholder="Nom" data-cn="${x.id}" value="${esc(x.name)}">${inp(x.id, 'f', x.f)}${inp(x.id, 'c', x.c)}<button class="row-del" data-cdl="${x.id}" aria-label="Supprimer">×</button></div><div class="mat-badges" style="margin:-2px 0 12px">${tg(x.id, 'mat', x.mat, '→ matelas')}${tg(x.id, 'debt', x.debt, '→ dettes')}</div>`).join('');
+    const get = id => cats.find(x => x.id === id);
     box.querySelectorAll('[data-cid]').forEach(i => i.addEventListener('input', () => {
-      const v = Math.min(Math.max(parseFloat(i.value) || 0, 0), 100), id = i.getAttribute('data-cid'), k = i.getAttribute('data-k');
-      if (/^p\d/.test(id)) { projets[id.slice(1)][k === 'f' ? 'pct' : 'pctC'] = v; saveProjets(); }
-      else { base[id][k] = v; try { localStorage.setItem(CATS_KEY, JSON.stringify(base)); } catch (e) {} }
-      compute();
+      get(i.getAttribute('data-cid'))[i.getAttribute('data-k')] = Math.min(Math.max(parseFloat(i.value) || 0, 0), 100); saveCats(); compute();
     }));
-    box.querySelectorAll('[data-pn]').forEach(i => i.addEventListener('input', () => { projets[i.getAttribute('data-pn')].name = i.value; saveProjets(); compute(); }));
-    box.querySelectorAll('[data-pdl]').forEach(b => b.addEventListener('click', () => { projets.splice(b.getAttribute('data-pdl'), 1); saveProjets(); renderCats(); compute(); }));
+    box.querySelectorAll('[data-cn]').forEach(i => i.addEventListener('input', () => { get(i.getAttribute('data-cn')).name = i.value; saveCats(); compute(); }));
+    box.querySelectorAll('[data-cdl]').forEach(b => b.addEventListener('click', () => { cats = cats.filter(x => x.id !== b.getAttribute('data-cdl')); saveCats(); renderCats(); compute(); }));
+    box.querySelectorAll('[data-tg]').forEach(b => b.addEventListener('click', () => {
+      const x = get(b.getAttribute('data-tg')), k = b.getAttribute('data-k'), v = !x[k];
+      if (k === 'mat') cats.forEach(y => { y.mat = false; });
+      x[k] = v; saveCats(); renderCats(); compute();
+    }));
   }
 
   function pushHisto() {
@@ -544,7 +554,7 @@
       let used = 0;
       list.forEach((x, i) => {
         let v = r2(pot * x[k] * kk / 100);
-        if (x.id === 'debt') { v = Math.min(v, Math.max(dette, 0)); dette -= v; }
+        if (x.debt) { v = Math.min(v, Math.max(dette, 0)); dette -= v; }
         res[i][k] = v; used += v;
       });
       return r2(pot - used);
@@ -562,13 +572,13 @@
       ${row('Commissions encaissées', C)}${row('Réserve cotisations (' + COTIS_PCT + ' %)', cotis, 'surete')}${TVA_PCT > 0 ? row('Réserve TVA (' + TVA_PCT + ' %)', tva, 'surete') : ''}
       ${row('Disponible après réserves', dispoC, 'vie')}${row('Total général disponible', r2(resteF + dispoC), 'logement total')}</div>
       <div class="result" style="margin-top:16px;overflow-x:auto"><table class="ct" style="margin:0"><thead><tr><th>Catégorie</th><th>Salaire fixe</th><th>Commissions</th><th>Total</th></tr></thead><tbody>
-      ${list.map((x, i) => tr(`${esc(x.name)}<br><span class="by-person">${x.f} % · ${x.c} %</span>`, res[i].f, res[i].c)).join('')}
+      ${list.map((x, i) => tr(`${esc(x.name || 'Sans nom')}<br><span class="by-person">${x.f} % · ${x.c} %</span>`, res[i].f, res[i].c)).join('')}
       ${tr('Vie courante', vieF, vieC)}${tr('<strong>Total</strong>', resteF, dispoC, r2(resteF + dispoC))}</tbody></table>${warn('f', 'Salaire fixe')}${warn('c', 'Commissions')}</div>`;
 
-    matMois = r2(res[1].f + res[1].c);
-    last = { F, C, sec: matMois, log: r2(res[0].f + res[0].c), oth: r2(res.slice(2).reduce((t, x) => t + x.f + x.c, 0)), vie: r2(vieF + vieC) };
+    matMois = r2(list.reduce((t, x, i) => t + (x.mat ? res[i].f + res[i].c : 0), 0));
+    last = { F, C, sec: matMois, log: 0, oth: r2(list.reduce((t, x, i) => t + (x.mat ? 0 : res[i].f + res[i].c), 0)), vie: r2(vieF + vieC) };
     const kc = mode === 'fixed' ? (sums.c > 0 ? 1 / sums.c : 0) : (sums.c > 100 ? 1 / sums.c : 0.01);
-    secuShare = list[1].c * kc;
+    secuShare = (list.find(x => x.mat) || { c: 0 }).c * kc;
     renderMatelas();
   }
 
@@ -703,7 +713,7 @@
   document.getElementById('suretyInput').value = surety;
   renderRows();
   initCats(); renderCats(); renderHisto();
-  document.getElementById('addCat').addEventListener('click', () => { projets.push({ name: '', pct: 0, pctC: 0 }); saveProjets(); renderCats(); compute(); });
+  document.getElementById('addCat').addEventListener('click', () => { cats.push({ id: newId(), name: '', f: 0, c: 0 }); saveCats(); renderCats(); compute(); });
   document.getElementById('tvaPctInput').addEventListener('input', (e) => { TVA_PCT = Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 100); try { localStorage.setItem(TVA_KEY, String(TVA_PCT)); } catch (err) {} compute(); });
   document.querySelectorAll('.mode-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-mode') === mode);
