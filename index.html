@@ -122,6 +122,8 @@
   .result-row.surete .amt { color: var(--rose); }
   .result-row.projet .amt { color: var(--blue); }
   .result-row.vie .amt { color: var(--sage); }
+  .meta{display:flex;gap:8px}.meta input[type=text]{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--text);font:inherit;font-size:14px}
+  .ct td,.ct th{font-size:13px;text-align:right;padding:8px 4px}.ct td:first-child,.ct th:first-child{text-align:left}
   .note { font-size: 12px; color: var(--text-muted); margin-top: 14px; line-height: 1.5; }
 
   .goal-card {
@@ -217,33 +219,7 @@
   </table>
   <button class="add-row" id="addRow" type="button">+ ajouter une ligne</button>
 
-  <div class="result" style="margin-top:24px;">
-    <div class="result-row">
-      <span>Charges fixes couvertes</span>
-      <span class="amt" id="outCharges">0 €</span>
-    </div>
-    <div class="result-row vie total">
-      <span><strong>Vers Cotisations</strong> (<span id="cotisLabel">30</span>% des commissions)</span>
-      <span class="amt" id="outCotis">0 €</span>
-    </div>
-    <div class="result-row projet total">
-      <span><strong>Vers Pablo</strong> (<span id="pabloLabel">10</span>%)</span>
-      <span class="amt" id="outPablo">0 €</span>
-    </div>
-    <div class="result-row logement total">
-      <span><strong>Vers Projet logement</strong> (<span id="splitLabel">30</span>%<span id="splitSuffix"> des commissions</span>)</span>
-      <span class="amt" id="outLogement">0 €</span>
-    </div>
-    <div class="result-row surete total">
-      <span><strong>Vers Dettes</strong> (<span id="debtLabel">0</span>%) <span id="debtLeft" class="by-person"></span></span>
-      <span class="amt" id="outDebt">0 €</span>
-    </div>
-    <div id="projetsResult"></div>
-    <div class="result-row vie total">
-      <span><strong>Vers Vie courante</strong></span>
-      <span class="amt" id="outVie">0 €</span>
-    </div>
-  </div>
+  <div id="dash"></div>
 
   <div class="goal-card" id="matCard">
     <label class="projets-label">Matelas de sécurité</label>
@@ -292,6 +268,8 @@
     <div class="goal-status" id="goalStatus"></div>
   </div>
 
+  <div class="goal-card"><label class="projets-label">Historique des mois</label><div id="histo"></div></div>
+
   <details class="reglages">
     <summary>Réglages</summary>
   <div class="split-fields">
@@ -319,50 +297,12 @@
     </div>
   </div>
 
+  <div style="display:none"><input id="splitInput"><input id="suretyInput"><input id="debtPctInput"><input id="pabloPctInput"><div id="projetsRows"></div><button id="addProjet" type="button"></button></div>
   <div class="split-fields">
-    <div class="split-field">
-      <label for="splitInput">Vers le logement</label>
-      <div class="split-input-row gold">
-        <input type="number" id="splitInput" min="0" max="100" step="1" value="30">
-        <span>%</span>
-      </div>
-    </div>
-    <div class="split-field" style="display:none">
-      <label for="suretyInput">Vers le matelas (après 650 €)</label>
-      <div class="split-input-row rose">
-        <input type="number" id="suretyInput" min="0" max="100" step="1" value="10">
-        <span>%</span>
-      </div>
-    </div>
-    <div class="split-field">
-      <label for="debtPctInput">Vers les dettes</label>
-      <div class="split-input-row rose">
-        <input type="number" id="debtPctInput" min="0" max="100" step="1" value="0">
-        <span>%</span>
-      </div>
-    </div>
-    <div class="split-field">
-      <label for="cotisPctInput">Cotisations (% des commissions)</label>
-      <div class="split-input-row rose">
-        <input type="number" id="cotisPctInput" min="0" max="100" step="0.1" value="30">
-        <span>%</span>
-      </div>
-    </div>
-    <div class="split-field">
-      <label for="pabloPctInput">Vers Pablo</label>
-      <div class="split-input-row blue">
-        <input type="number" id="pabloPctInput" min="0" max="100" step="1" value="10">
-        <span>%</span>
-      </div>
-    </div>
+    <div class="split-field"><label for="cotisPctInput">Cotisations (% des commissions)</label><div class="split-input-row rose"><input type="number" id="cotisPctInput" min="0" max="100" step="0.1" value="30"><span>%</span></div></div>
+    <div class="split-field"><label for="tvaPctInput">Réserve TVA (% des commissions)</label><div class="split-input-row rose"><input type="number" id="tvaPctInput" min="0" max="100" step="0.1" value="0"><span>%</span></div></div>
   </div>
-
-  <div class="projets-block">
-    <label class="projets-label">Poches projet</label>
-    <div id="projetsRows"></div>
-    <button class="add-row" id="addProjet" type="button">+ ajouter un projet</button>
-  </div>
-
+  <div class="projets-block"><label class="projets-label">Catégories : % du salaire fixe / % des commissions (indépendants)</label><div id="catsBox"></div><button class="add-row" id="addCat" type="button">+ ajouter une catégorie</button></div>
   </details>
   </div>
 
@@ -549,115 +489,102 @@
   }
 
   function renderRows() {
-    const body = document.getElementById('rows');
-    body.innerHTML = rows.map((r, i) => `
-      <tr>
-        <td><input type="number" inputmode="decimal" placeholder="0" min="0" step="0.01" data-i="${i}" data-col="rsa" value="${r.rsa}"></td>
-        <td><input type="number" inputmode="decimal" placeholder="0" min="0" step="0.01" data-i="${i}" data-col="com" value="${r.com}"></td>
-        <td><button class="row-del" data-del="${i}" aria-label="Supprimer">×</button></td>
-      </tr>
-    `).join('');
+    const b = document.getElementById('rows');
+    const n = (i, c, v) => `<input type="number" inputmode="decimal" placeholder="0" min="0" step="0.01" data-i="${i}" data-col="${c}" value="${v}">`;
+    b.innerHTML = rows.map((r, i) => `<tr><td>${n(i,'rsa',r.rsa)}</td><td>${n(i,'com',r.com)}</td><td><button class="row-del" data-del="${i}" aria-label="Supprimer">×</button></td></tr><tr><td colspan="3" style="padding-top:0"><div class="meta"><input type="text" placeholder="Client / description" data-i="${i}" data-col="note" value="${esc(r.note)}"><input type="date" class="date-input" data-i="${i}" data-col="date" value="${r.date || ''}"></div></td></tr>`).join('');
+    b.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+      rows[parseInt(inp.getAttribute('data-i'))][inp.getAttribute('data-col')] = inp.value; save(); compute();
+    }));
+    b.querySelectorAll('[data-del]').forEach(btn => btn.addEventListener('click', () => {
+      rows.splice(parseInt(btn.getAttribute('data-del')), 1);
+      if (rows.length === 0) rows = [{ rsa: '', com: '' }];
+      save(); renderRows(); compute();
+    }));
+  }
 
-    body.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', () => {
-        const i = parseInt(inp.getAttribute('data-i'));
-        const col = inp.getAttribute('data-col');
-        rows[i][col] = inp.value;
-        save();
-        compute();
-      });
-    });
-    body.querySelectorAll('[data-del]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const i = parseInt(btn.getAttribute('data-del'));
-        rows.splice(i, 1);
-        if (rows.length === 0) rows = [{ rsa: '', com: '' }];
-        save();
-        renderRows();
-        compute();
-      });
-    });
+  const CATS_KEY = 'repartition-simple-cats-v2', TVA_KEY = 'repartition-simple-tva-v1', HIST_KEY = 'repartition-simple-hist-v1';
+  let base = null, TVA_PCT = 0, hist = [];
+  const r2 = x => Math.round((x + 1e-9) * 100) / 100;
+  function initCats() {
+    try { base = JSON.parse(localStorage.getItem(CATS_KEY)); } catch (e) {}
+    if (!base) base = { log: { f: split, c: split }, pablo: { f: pabloPct, c: pabloPct }, debt: { f: debtPct, c: debtPct } };
+    projets.forEach(p => { if (p.pctC === undefined) p.pctC = p.pct; });
+    try { const t = localStorage.getItem(TVA_KEY); if (t) TVA_PCT = parseFloat(t) || 0; } catch (e) {}
+    try { hist = JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { hist = []; }
+    document.getElementById('tvaPctInput').value = TVA_PCT;
+  }
+  const allCats = () => [
+    { id: 'log', name: 'Projet logement', f: base.log.f, c: base.log.c },
+    { id: 'pablo', name: 'Pablo', f: base.pablo.f, c: base.pablo.c },
+    { id: 'debt', name: 'Dettes', f: base.debt.f, c: base.debt.c }
+  ].concat(projets.map((p, i) => ({ id: 'p' + i, name: p.name || 'Projet', f: parseFloat(p.pct) || 0, c: parseFloat(p.pctC) || 0 })));
+
+  function renderCats() {
+    const inp = (id, k, v) => `<div class="pct-wrap"><input type="number" min="0" max="100" step="0.5" data-cid="${id}" data-k="${k}" value="${v}"><span>%</span></div>`;
+    document.getElementById('catsBox').innerHTML = '<div class="projet-row" style="font-size:12px;color:var(--text-muted)"><span style="flex:1">Catégorie</span><span style="width:76px">% fixe</span><span style="width:76px">% comm.</span><span style="width:20px"></span></div>' +
+      allCats().map(x => {
+        const pj = /^p\d/.test(x.id);
+        return `<div class="projet-row">${pj ? `<input type="text" placeholder="Nom du projet" data-pn="${x.id.slice(1)}" value="${esc(projets[x.id.slice(1)].name)}">` : `<span style="flex:1;font-size:15px">${x.name}</span>`}${inp(x.id, 'f', x.f)}${inp(x.id, 'c', x.c)}${pj ? `<button class="row-del" data-pdl="${x.id.slice(1)}" aria-label="Supprimer">×</button>` : '<span style="width:20px"></span>'}</div>`;
+      }).join('');
+    const box = document.getElementById('catsBox');
+    box.querySelectorAll('[data-cid]').forEach(i => i.addEventListener('input', () => {
+      const v = Math.min(Math.max(parseFloat(i.value) || 0, 0), 100), id = i.getAttribute('data-cid'), k = i.getAttribute('data-k');
+      if (/^p\d/.test(id)) { projets[id.slice(1)][k === 'f' ? 'pct' : 'pctC'] = v; saveProjets(); }
+      else { base[id][k] = v; try { localStorage.setItem(CATS_KEY, JSON.stringify(base)); } catch (e) {} }
+      compute();
+    }));
+    box.querySelectorAll('[data-pn]').forEach(i => i.addEventListener('input', () => { projets[i.getAttribute('data-pn')].name = i.value; saveProjets(); compute(); }));
+    box.querySelectorAll('[data-pdl]').forEach(b => b.addEventListener('click', () => { projets.splice(b.getAttribute('data-pdl'), 1); saveProjets(); renderCats(); compute(); }));
+  }
+
+  function pushHisto() {
+    const F = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0), C = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
+    if (!F && !C) return;
+    hist.unshift({ d: new Date().toISOString().slice(0, 10), F, C, det: rows.map(r => Object.assign({}, r)) });
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(hist)); } catch (e) {}
+    renderHisto();
+  }
+  function renderHisto() {
+    document.getElementById('histo').innerHTML = hist.length ? hist.map(h => `<details style="margin-bottom:6px"><summary class="by-person" style="cursor:pointer">${h.d} · Fixe ${fmt(h.F)} · Commissions ${fmt(h.C)}</summary>${(h.det || []).filter(r => parseFloat(r.com)).map(r => `<div class="by-person" style="padding:4px 0 0 14px">${esc(r.date)} ${esc(r.note)} — ${fmt(parseFloat(r.com))}</div>`).join('')}</details>`).join('') : '<div class="by-person">Aucun mois clôturé.</div>';
   }
 
   function compute() {
-    const totalRsa = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0);
-    const totalCom = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
-
-    const chargesCouvertes = Math.min(chargesFixes, totalRsa + totalCom);
-    const rsaVersVie = Math.max(totalRsa - chargesFixes, 0);
-    const shortfall = Math.max(chargesFixes - totalRsa, 0);
-    const comApresCharges = Math.max(totalCom - shortfall, 0);
-
-    // Micro-entreprise : 30 % des commissions vont automatiquement en cotisations
-    const cotis = totalCom * (COTIS_PCT / 100);
-    const matTot = 0;
-    const versPabloInit = 0;
-    let versPablo = versPabloInit;
-    const margeTot = Math.max(totalCom - cotis - shortfall, 0);
-    matMois = 0;
-
-    const totalProjetsPct = projets.reduce((s, p) => s + (parseFloat(p.pct) || 0), 0);
-
-    let comVersLogement, comVersSurety, comVersVie;
-    let projetsMontants = [];
-    let versDettes = 0;
-    const dette = totalDebt();
-
-    if (mode === 'fixed') {
-      const pot = rsaVersVie + margeTot;
-      const vieCourante = Math.min(vieFixed, pot);
-      const resteAPartager = pot - vieCourante;
-      const totalPoids = split + totalProjetsPct + debtPct + pabloPct;
-
-      if (totalPoids > 0) {
-        versDettes = Math.min(resteAPartager * (debtPct / totalPoids), dette);
-        comVersLogement = resteAPartager * (split / totalPoids);
-        comVersSurety = 0;
-        versPablo = resteAPartager * (pabloPct / totalPoids);
-        projetsMontants = projets.map(p => resteAPartager * ((parseFloat(p.pct) || 0) / totalPoids));
-      } else {
-        comVersLogement = 0;
-        comVersSurety = 0;
-        projetsMontants = projets.map(() => 0);
-      }
-      comVersVie = vieCourante - rsaVersVie; // la part venant des commissions (rsaVersVie va directement dans vie aussi)
-      document.getElementById('outVie').textContent = fmt(vieCourante);
-    } else {
-      const pot = rsaVersVie + margeTot;
-      comVersLogement = pot * (split / 100);
-      comVersSurety = 0;
-      versDettes = Math.min(pot * (debtPct / 100), dette);
-      versPablo = pot * (pabloPct / 100);
-      // CORRECTIF : les surplus (dettes soldées, matelas plein) ne vont plus au logement, ils restent dans Vie courante
-      projetsMontants = projets.map(p => pot * ((parseFloat(p.pct) || 0) / 100));
-      comVersVie = pot - comVersLogement - comVersSurety - versDettes - versPablo - projetsMontants.reduce((s, v) => s + v, 0);
-      document.getElementById('outVie').textContent = fmt(comVersVie);
+    const F = rows.reduce((s, r) => s + (parseFloat(r.rsa) || 0), 0), C = rows.reduce((s, r) => s + (parseFloat(r.com) || 0), 0);
+    const resteF = Math.max(r2(F - chargesFixes), 0), short = Math.max(r2(chargesFixes - F), 0);
+    const cotis = r2(C * COTIS_PCT / 100), tva = r2(C * TVA_PCT / 100);
+    const dispoC = Math.max(r2(C - cotis - tva - short), 0);
+    const list = allCats(); let dette = totalDebt();
+    const res = list.map(() => ({ f: 0, c: 0 }));
+    const sums = { f: list.reduce((s, x) => s + x.f, 0), c: list.reduce((s, x) => s + x.c, 0) };
+    function dist(pot, k, norm) {
+      const kk = norm ? (sums[k] > 0 ? 100 / sums[k] : 0) : (sums[k] > 100 ? 100 / sums[k] : 1);
+      let used = 0;
+      list.forEach((x, i) => {
+        let v = r2(pot * x[k] * kk / 100);
+        if (x.id === 'debt') { v = Math.min(v, Math.max(dette, 0)); dette -= v; }
+        res[i][k] = v; used += v;
+      });
+      return r2(pot - used);
     }
+    const vieF = dist(resteF, 'f', false);
+    let vieC;
+    if (mode === 'fixed') { dist(r2(dispoC - Math.min(vieFixed, dispoC)), 'c', true); vieC = r2(dispoC - res.reduce((s, x) => s + x.c, 0)); }
+    else vieC = dist(dispoC, 'c', false);
 
-    matMois = 0;
-    document.getElementById('outCotis').textContent = fmt(cotis);
-    document.getElementById('cotisLabel').textContent = COTIS_PCT;
-    document.getElementById('outPablo').textContent = fmt(versPablo);
-    document.getElementById('pabloLabel').textContent = pabloPct;
-    renderMatelas();
-    document.getElementById('outCharges').textContent = fmt(chargesCouvertes);
-    document.getElementById('outLogement').textContent = fmt(comVersLogement);
-    document.getElementById('splitLabel').textContent = split;
-    document.getElementById('splitSuffix').textContent = '';
-    renderProjetsResult(projetsMontants);
-    document.getElementById('outDebt').textContent = fmt(versDettes);
-    document.getElementById('debtLabel').textContent = debtPct;
-    document.getElementById('debtLeft').textContent = dette > 0 ? '· reste dû ' + fmt(Math.max(dette - versDettes, 0)) : '· aucune dette';
+    const row = (l, v, cls) => `<div class="result-row ${cls || ''}"><span>${l}</span><span class="amt">${fmt(v)}</span></div>`;
+    const warn = (k, t) => sums[k] > 100 ? `<div class="note" style="color:var(--rose)">⚠ ${t} : total des % = ${r2(sums[k])} % (> 100)</div>` : '';
+    const tr = (n, a, b, s) => `<tr><td>${n}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td><strong>${fmt(s === undefined ? r2(a + b) : s)}</strong></td></tr>`;
+    document.getElementById('dash').innerHTML = `<div class="result" style="margin-top:24px;">
+      ${row('Salaire fixe', F)}${row('Charges fixes couvertes', Math.min(chargesFixes, F + C))}${row('Reste du salaire', resteF, 'vie')}
+      ${row('Commissions encaissées', C)}${row('Réserve cotisations (' + COTIS_PCT + ' %)', cotis, 'surete')}${TVA_PCT > 0 ? row('Réserve TVA (' + TVA_PCT + ' %)', tva, 'surete') : ''}
+      ${row('Disponible après réserves', dispoC, 'vie')}${row('Total général disponible', r2(resteF + dispoC), 'logement total')}</div>
+      <div class="result" style="margin-top:16px;overflow-x:auto"><table class="ct" style="margin:0"><thead><tr><th>Catégorie</th><th>Salaire fixe</th><th>Commissions</th><th>Total</th></tr></thead><tbody>
+      ${list.map((x, i) => tr(`${esc(x.name)}<br><span class="by-person">${x.f} % · ${x.c} %</span>`, res[i].f, res[i].c)).join('')}
+      ${tr('Vie courante', vieF, vieC)}${tr('<strong>Total</strong>', resteF, dispoC, r2(resteF + dispoC))}</tbody></table>${warn('f', 'Salaire fixe')}${warn('c', 'Commissions')}</div>`;
 
-    const poidsLog = split;
-    let share;
-    if (mode === 'fixed') {
-      const tp = split + totalProjetsPct + pabloPct + debtPct;
-      share = tp > 0 ? poidsLog / tp : 0;
-    } else {
-      share = poidsLog / 100;
-    }
-    renderGoal(comVersLogement, share);
+    matMois = 0; renderMatelas();
+    const kc = mode === 'fixed' ? (sums.c > 0 ? 1 / sums.c : 0) : (sums.c > 100 ? 1 / sums.c : 0.01);
+    renderGoal(r2(res[0].f + res[0].c), list[0].c * kc);
   }
 
   function renderGoal(logementCeMois, share) {
@@ -693,7 +620,7 @@
     if (salePrice > 0 && share > 0) {
       let remMat = Math.max(MAT_PRIORITY - (matelas + matMois), 0), left = remaining, sales = 0, got = 0;
       while (left > 0 && sales < 1000) {
-        got = salePrice * (1 - COTIS_PCT / 100) * share; left -= got; sales++;
+        got = salePrice * (1 - (COTIS_PCT + TVA_PCT) / 100) * share; left -= got; sales++;
       }
       const perMonth = Math.ceil(sales / Math.max(monthsLeft, 1) * 10) / 10;
       status.innerHTML += `<br><strong>${sales} vente${sales > 1 ? 's' : ''}</strong> à faire d'ici la date visée (~${perMonth.toLocaleString('fr-FR')}/mois), à ${fmt(salePrice)} la vente (après ${COTIS_PCT}% de cotisations).`;
@@ -712,7 +639,7 @@
   });
 
   document.getElementById('addRow').addEventListener('click', () => {
-    rows.push({ rsa: '', com: '' });
+    rows.push({ rsa: '', com: '', date: new Date().toISOString().slice(0, 10), note: '' });
     save();
     renderRows();
   });
@@ -800,6 +727,7 @@
   });
   document.getElementById('matAdd').addEventListener('click', () => {
     if (!confirm('Vider le tableau du mois ?')) return;
+    pushHisto();
     matelas += matMois;
     try { localStorage.setItem(MAT_KEY, String(matelas)); } catch (err) {}
     rows = [{ rsa: '', com: '' }];
@@ -831,7 +759,9 @@
   document.getElementById('splitInput').value = split;
   document.getElementById('suretyInput').value = surety;
   renderRows();
-  renderProjets();
+  initCats(); renderCats(); renderHisto();
+  document.getElementById('addCat').addEventListener('click', () => { projets.push({ name: '', pct: 0, pctC: 0 }); saveProjets(); renderCats(); compute(); });
+  document.getElementById('tvaPctInput').addEventListener('input', (e) => { TVA_PCT = Math.min(Math.max(parseFloat(e.target.value) || 0, 0), 100); try { localStorage.setItem(TVA_KEY, String(TVA_PCT)); } catch (err) {} compute(); });
   document.querySelectorAll('.mode-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-mode') === mode);
   });
